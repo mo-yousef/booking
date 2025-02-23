@@ -1,0 +1,178 @@
+/* assets/css/admin.css */
+
+/* Dashboard Styles */
+.vb-dashboard-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.vb-widget {
+  background: #fff;
+  border: 1px solid #ccd0d4;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+
+.vb-widget h3 {
+  border-bottom: 1px solid #ccd0d4;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.vb-widget-content {
+  padding: 12px;
+}
+
+.vb-stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f1;
+}
+
+.vb-stat-item:last-child {
+  border-bottom: none;
+}
+
+.vb-stat-label {
+  color: #646970;
+}
+
+.vb-stat-value {
+  font-weight: 600;
+}
+
+.vb-widget-footer {
+  border-top: 1px solid #ccd0d4;
+  padding: 8px 12px;
+  margin: 0;
+  text-align: right;
+}
+
+/* Status Indicators */
+.vb-status {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.vb-status-pending {
+  background-color: #f0c33c;
+  color: #fff;
+}
+
+.vb-status-confirmed {
+  background-color: #00a0d2;
+  color: #fff;
+}
+
+.vb-status-completed {
+  background-color: #46b450;
+  color: #fff;
+}
+
+.vb-status-cancelled {
+  background-color: #dc3232;
+  color: #fff;
+}
+
+.vb-status-active {
+  background-color: #46b450;
+  color: #fff;
+}
+
+.vb-status-inactive {
+  background-color: #dc3232;
+  color: #fff;
+}
+
+/* Form Styles */
+.vb-form-row {
+  margin-bottom: 15px;
+}
+
+.vb-form-row label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.vb-form-row input[type="text"],
+.vb-form-row input[type="number"],
+.vb-form-row input[type="email"],
+.vb-form-row input[type="password"],
+.vb-form-row select {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Modal Styles */
+.vb-modal {
+  display: none;
+  position: fixed;
+  z-index: 100000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.vb-modal-content {
+  background-color: #fff;
+  margin: 5% auto;
+  padding: 20px;
+  width: 80%;
+  max-width: 600px;
+  position: relative;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.vb-modal h2 {
+  margin-top: 0;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #ccd0d4;
+}
+
+/* Table Styles */
+.wp-list-table .column-actions {
+  width: 150px;
+}
+
+.wp-list-table .vb-status-select {
+  min-width: 120px;
+}
+
+/* Filter Styles */
+.tablenav.top .actions {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.tablenav.top .actions select,
+.tablenav.top .actions input[type="date"] {
+  margin: 0;
+}
+
+/* Responsive Styles */
+@media screen and (max-width: 782px) {
+  .vb-dashboard-widgets {
+    grid-template-columns: 1fr;
+  }
+
+  .tablenav.top .actions {
+    flex-direction: column;
+  }
+
+  .tablenav.top .actions select,
+  .tablenav.top .actions input[type="date"] {
+    width: 100%;
+  }
+}
