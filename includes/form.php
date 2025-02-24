@@ -31,6 +31,7 @@ class Form {
 
         add_action('wp_ajax_vb_select_service', array($this, 'ajax_select_service'));
         add_action('wp_ajax_nopriv_vb_select_service', array($this, 'ajax_select_service'));
+
     }
 
 public function ajax_select_service() {
@@ -114,10 +115,17 @@ public function ajax_select_service() {
         ));
 
         // Prepare form data for JavaScript
-        wp_localize_script('vandel-booking-public', 'vbBookingData', array(
-            'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('vb_booking_form'),
-        ));
+        // wp_localize_script('vandel-booking-public', 'vbBookingData', array(
+        //     'ajaxurl' => admin_url('admin-ajax.php'),
+        //     'nonce' => wp_create_nonce('vb_booking_form'),
+        // ));
+
+wp_enqueue_script('vandel-booking-public', plugin_dir_url(__FILE__) . 'assets/js/public.js', array('jquery'), '1.0.0', true);
+wp_localize_script('vandel-booking-public', 'vbBookingData', array(
+    'ajaxurl' => admin_url('admin-ajax.php'),
+    'nonce' => wp_create_nonce('vb_booking_form'),
+    // Other necessary data
+));
 
         // Include the template
         ob_start();
@@ -125,149 +133,112 @@ public function ajax_select_service() {
         return ob_get_clean();
     }
 
-    /**
-     * AJAX handler for checking service availability
-     */
-    public function check_availability() {
-        check_ajax_referer('vb_check_availability', 'nonce');
+/**
+ * AJAX handler for checking service availability
+ */
+public function check_availability() {
+    // Verify nonce
+    check_ajax_referer('vb_booking_form', 'nonce');
 
-        $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
-        $date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
-        $zip_code = isset($_POST['zip_code']) ? sanitize_text_field($_POST['zip_code']) : '';
+    // Validate and sanitize input
+    $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
+    $date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+    $zip_code = isset($_POST['zip_code']) ? sanitize_text_field($_POST['zip_code']) : '';
 
-        if (!$service_id || !$date || !$zip_code) {
-            wp_send_json_error(array(
-                'message' => __('Missing required parameters.', 'vandel-booking')
-            ));
-        }
-
-        // Get available slots
-        $slots = $this->service->get_available_slots($service_id, $date, $zip_code);
-
-        // Get pricing for the location
-        $price = $this->database->get_service_price($service_id, $zip_code);
-        if (!$price) {
-            $price = get_post_meta($service_id, 'vb_regular_price', true);
-        }
-
-        wp_send_json_success(array(
-            'slots' => $slots,
-            'price' => $price
+    // Validate required parameters
+    if (!$service_id || !$date || !$zip_code) {
+        wp_send_json_error(array(
+            'message' => __('Missing required parameters.', 'vandel-booking')
         ));
     }
 
-    /**
-     * AJAX handler for creating a booking
-     */
-    public function create_booking() {
-        check_ajax_referer('vb_create_booking', 'nonce');
-
-        // Validate required fields
-        $required_fields = array(
-            'service_id' => 'intval',
-            'booking_date' => 'sanitize_text_field',
-            'zip_code' => 'sanitize_text_field',
-            'customer_name' => 'sanitize_text_field',
-            'customer_email' => 'sanitize_email',
-            'customer_phone' => 'sanitize_text_field'
-        );
-
-        $data = array();
-        foreach ($required_fields as $field => $sanitize_function) {
-            if (!isset($_POST[$field])) {
-                wp_send_json_error(array(
-                    'message' => sprintf(__('Missing required field: %s', 'vandel-booking'), $field)
-                ));
-            }
-            $data[$field] = $sanitize_function($_POST[$field]);
-        }
-
-        // Validate booking date format
-        $booking_timestamp = strtotime($data['booking_date']);
-        if (!$booking_timestamp) {
-            wp_send_json_error(array(
-                'message' => __('Invalid booking date format.', 'vandel-booking')
-            ));
-        }
-
-        // Check if slot is still available
-        $slots = $this->service->get_available_slots(
-            $data['service_id'],
-            date('Y-m-d', $booking_timestamp),
-            $data['zip_code']
-        );
-
-        $slot_available = false;
-        foreach ($slots as $slot) {
-            if ($slot['start'] === $data['booking_date'] && $slot['available']) {
-                $slot_available = true;
-                break;
-            }
-        }
-
-        if (!$slot_available) {
-            wp_send_json_error(array(
-                'message' => __('Selected time slot is no longer available.', 'vandel-booking')
-            ));
-        }
-
-        // Calculate pricing
-        $price = $this->database->get_service_price($data['service_id'], $data['zip_code']);
-        if (!$price) {
-            $price = get_post_meta($data['service_id'], 'vb_regular_price', true);
-        }
-
-        // Apply tax
-        $tax_rate = get_post_meta($data['service_id'], 'vb_tax_rate', true);
-        $tax_amount = $price * ($tax_rate / 100);
-
-        // Check for deposit payment
-        $enable_deposit = get_post_meta($data['service_id'], 'vb_enable_deposit', true);
-        $deposit_amount = null;
-        if ($enable_deposit) {
-            $deposit_type = get_post_meta($data['service_id'], 'vb_deposit_type', true);
-            $deposit_value = get_post_meta($data['service_id'], 'vb_deposit_amount', true);
-            
-            if ($deposit_type === 'percentage') {
-                $deposit_amount = $price * ($deposit_value / 100);
-            } else {
-                $deposit_amount = $deposit_value;
-            }
-        }
-
-        // Create customer if not exists
-        $customer_id = $this->create_or_get_customer($data);
-
-        // Prepare booking data
-        $booking_data = array(
-            'service_id' => $data['service_id'],
-            'customer_id' => $customer_id,
-            'booking_date' => $data['booking_date'],
-            'status' => 'pending',
-            'total_amount' => $price + $tax_amount,
-            'deposit_amount' => $deposit_amount,
-            'tax_amount' => $tax_amount,
-            'currency' => get_option('vandel_booking_currency', 'USD'),
-            'zip_code' => $data['zip_code']
-        );
-
-        // Create booking
-        $booking_id = $this->database->create_booking($booking_data);
-
-        if (!$booking_id) {
-            wp_send_json_error(array(
-                'message' => __('Failed to create booking.', 'vandel-booking')
-            ));
-        }
-
-        // Send confirmation emails
-        $this->send_booking_emails($booking_id);
-
-        wp_send_json_success(array(
-            'booking_id' => $booking_id,
-            'message' => __('Booking created successfully.', 'vandel-booking')
+    // Validate date format
+    if (!strtotime($date)) {
+        wp_send_json_error(array(
+            'message' => __('Invalid date format.', 'vandel-booking')
         ));
     }
+
+    // Get available slots
+    $slots = $this->service->get_available_slots($service_id, $date, $zip_code);
+
+    // Get pricing for the location
+    $price = $this->database->get_service_price($service_id, $zip_code);
+    if (!$price) {
+        $price = get_post_meta($service_id, 'vb_regular_price', true);
+    }
+
+    // Prepare and return response
+    wp_send_json_success(array(
+        'slots' => $slots,
+        'price' => $price
+    ));
+}
+
+/**
+ * AJAX handler for creating a booking
+ */
+public function create_booking() {
+    // Verify nonce
+    check_ajax_referer('vb_booking_form', 'nonce');
+
+    // Sanitize and validate input
+    $data = array(
+        'service_id' => isset($_POST['service_id']) ? intval($_POST['service_id']) : 0,
+        'sub_service_id' => isset($_POST['sub_service_id']) ? intval($_POST['sub_service_id']) : null,
+        'booking_date' => isset($_POST['booking_date']) ? sanitize_text_field($_POST['booking_date']) : '',
+        'zip_code' => isset($_POST['zip_code']) ? sanitize_text_field($_POST['zip_code']) : '',
+        'customer_name' => isset($_POST['customer_name']) ? sanitize_text_field($_POST['customer_name']) : '',
+        'customer_email' => isset($_POST['customer_email']) ? sanitize_email($_POST['customer_email']) : '',
+        'customer_phone' => isset($_POST['customer_phone']) ? sanitize_text_field($_POST['customer_phone']) : '',
+        'customer_notes' => isset($_POST['customer_notes']) ? sanitize_textarea_field($_POST['customer_notes']) : '',
+        'total_amount' => isset($_POST['total_amount']) ? floatval($_POST['total_amount']) : 0,
+        'tax_amount' => isset($_POST['tax_amount']) ? floatval($_POST['tax_amount']) : 0,
+        'discount' => isset($_POST['discount']) ? floatval($_POST['discount']) : 0,
+        'pay_deposit' => isset($_POST['pay_deposit']) ? true : false
+    );
+
+    // Validate required fields
+    $required_fields = array('service_id', 'booking_date', 'zip_code', 'customer_name', 'customer_email', 'customer_phone');
+    foreach ($required_fields as $field) {
+        if (empty($data[$field])) {
+            wp_send_json_error(array(
+                'message' => sprintf(__('Missing required field: %s', 'vandel-booking'), $field)
+            ));
+        }
+    }
+
+    // Create customer if not exists
+    $customer_id = $this->create_or_get_customer($data);
+
+    // Prepare booking data for database
+    $booking_data = array(
+        'service_id' => $data['service_id'],
+        'customer_id' => $customer_id,
+        'booking_date' => $data['booking_date'],
+        'status' => 'pending',
+        'total_amount' => $data['total_amount'],
+        'tax_amount' => $data['tax_amount'],
+        'zip_code' => $data['zip_code']
+    );
+
+    // Create booking
+    $booking_id = $this->database->create_booking($booking_data);
+
+    if (!$booking_id) {
+        wp_send_json_error(array(
+            'message' => __('Failed to create booking.', 'vandel-booking')
+        ));
+    }
+
+    // Send confirmation emails
+    $this->send_booking_emails($booking_id);
+
+    wp_send_json_success(array(
+        'booking_id' => $booking_id,
+        'message' => __('Booking created successfully.', 'vandel-booking')
+    ));
+}
 
     /**
      * AJAX handler for applying a coupon
@@ -320,36 +291,37 @@ public function ajax_select_service() {
         ));
     }
 
-    /**
-     * Create or get customer
-     */
-    private function create_or_get_customer($data) {
-        // Check if customer exists
-        $user = get_user_by('email', $data['customer_email']);
-        
-        if ($user) {
-            return $user->ID;
-        }
-
-        // Create new customer
-        $user_data = array(
-            'user_login' => $data['customer_email'],
-            'user_email' => $data['customer_email'],
-            'user_pass' => wp_generate_password(),
-            'first_name' => $data['customer_name'],
-            'role' => 'customer'
-        );
-
-        $user_id = wp_insert_user($user_data);
-
-        if (is_wp_error($user_id)) {
-            return 0;
-        }
-
-        update_user_meta($user_id, 'billing_phone', $data['customer_phone']);
-
-        return $user_id;
+/**
+ * Create or retrieve customer
+ */
+private function create_or_get_customer($data) {
+    // Check if customer exists
+    $user = get_user_by('email', $data['customer_email']);
+    
+    if ($user) {
+        return $user->ID;
     }
+
+    // Create new customer
+    $user_data = array(
+        'user_login' => $data['customer_email'],
+        'user_email' => $data['customer_email'],
+        'user_pass' => wp_generate_password(),
+        'first_name' => $data['customer_name'],
+        'role' => 'customer'
+    );
+
+    $user_id = wp_insert_user($user_data);
+
+    if (is_wp_error($user_id)) {
+        return 0;
+    }
+
+    // Add phone number as user meta
+    update_user_meta($user_id, 'billing_phone', $data['customer_phone']);
+
+    return $user_id;
+}
 
     /**
      * Send booking confirmation emails

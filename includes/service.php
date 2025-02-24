@@ -259,13 +259,6 @@ class Service {
         return get_post_meta($service_id, '_vb_parent_service', true);
     }
 
-
-
-
-
-
-
-
     /**
      * Update service pricing in the database table
      */
@@ -305,65 +298,91 @@ class Service {
      * Get available time slots for a service
      */
     public function get_available_slots($service_id, $date, $zip_code) {
-        $duration = get_post_meta($service_id, 'vb_duration', true);
-        $buffer_time = get_post_meta($service_id, 'vb_buffer_time', true);
-        $max_bookings = get_post_meta($service_id, 'vb_max_bookings_per_day', true);
+        // Validate inputs
+        if (!$service_id || !$date || !$zip_code) {
+            return array();
+        }
+
+        // Get service-specific settings
+        $duration = get_post_meta($service_id, 'vb_duration', true) ?: 60; // Default 60 minutes
+        $buffer_time = get_post_meta($service_id, 'vb_buffer_time', true) ?: 15; // Default 15 minutes buffer
+        $max_bookings_per_slot = get_post_meta($service_id, 'vb_max_bookings_per_day', true) ?: 1; // Default 1 booking per slot
 
         // Get day of week
         $day = strtolower(date('l', strtotime($date)));
         $schedule = get_post_meta($service_id, 'vb_schedule_' . $day, true);
 
+        // If no schedule is set for this day, return empty
         if (!$schedule || !$schedule['enabled']) {
             return array();
         }
 
+        // Convert schedule times to timestamps
         $start_time = strtotime($date . ' ' . $schedule['start']);
         $end_time = strtotime($date . ' ' . $schedule['end']);
-        $slot_duration = ($duration + $buffer_time) * 60; // Convert to seconds
+        $slot_interval = ($duration + $buffer_time) * 60; // Convert to seconds
 
         $slots = array();
         $current_time = $start_time;
 
         while ($current_time + ($duration * 60) <= $end_time) {
-            // Check if slot is available
-            $existing_bookings = $this->count_bookings_for_slot($service_id, date('Y-m-d H:i:s', $current_time));
-            
-            $slots[] = array(
-                'start' => date('Y-m-d H:i:s', $current_time),
-                'end' => date('Y-m-d H:i:s', $current_time + ($duration * 60)),
-                'available' => $existing_bookings < $max_bookings
+            $slot_start = date('Y-m-d H:i:s', $current_time);
+            $slot_end = date('Y-m-d H:i:s', $current_time + ($duration * 60));
+
+            // Check slot availability
+            $slot_availability = $this->check_slot_availability(
+                $service_id, 
+                $slot_start, 
+                $slot_end, 
+                $zip_code, 
+                $max_bookings_per_slot
             );
 
-            $current_time += $slot_duration;
+            $slots[] = array(
+                'start' => $slot_start,
+                'end' => $slot_end,
+                'available' => $slot_availability
+            );
+
+            // Move to next slot
+            $current_time += $slot_interval;
         }
 
         return $slots;
     }
 
     /**
-     * Count existing bookings for a time slot
+     * Check availability for a specific time slot
      */
-    private function count_bookings_for_slot($service_id, $datetime) {
+    private function check_slot_availability($service_id, $slot_start, $slot_end, $zip_code, $max_bookings) {
         global $wpdb;
-        
-        return $wpdb->get_var($wpdb->prepare(
+
+        // Check existing bookings for this time slot
+        $existing_bookings = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->prefix}vb_bookings 
             WHERE service_id = %d 
-            AND booking_date = %s 
+            AND booking_date BETWEEN %s AND %s
+            AND zip_code = %s
             AND status NOT IN ('cancelled', 'rejected')",
             $service_id,
-            $datetime
+            $slot_start,
+            $slot_end,
+            $zip_code
         ));
+
+        // Return true if bookings are less than max allowed
+        return $existing_bookings < $max_bookings;
     }
 
     /**
      * Get service price for a specific ZIP code
      */
     public function get_price($service_id, $zip_code) {
+        // First, try location-specific pricing
         $price = $this->database->get_service_price($service_id, $zip_code);
         
+        // If no location-specific price, use service's regular price
         if (!$price) {
-            // If no location-specific price, return regular price
             $price = get_post_meta($service_id, 'vb_regular_price', true);
             
             // Check for sale price
@@ -373,14 +392,14 @@ class Service {
             }
         }
 
-        return floatval($price);
+        return floatval($price ?: 0);
     }
 
-    /**
+/**
      * Calculate total price including tax
      */
     public function calculate_total($service_id, $price) {
-        $tax_rate = get_post_meta($service_id, 'vb_tax_rate', true);
+        $tax_rate = get_post_meta($service_id, 'vb_tax_rate', true) ?: 0;
         $tax_amount = $price * ($tax_rate / 100);
         
         return array(
