@@ -3,13 +3,12 @@ namespace VandelBooking;
 
 /**
  * Plugin Name: Vandel Booking
- * Plugin URI: https://example.com/vandel-booking
+ * Plugin URI: https://moyousif.com
  * Description: A comprehensive booking plugin supporting location-based bookings and variable pricing.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Your Name
- * Author URI: https://example.com
+ * Author URI: https://moyousif.com
  * Text Domain: vandel-booking
- * Domain Path: /languages
  * License: GPL v2 or later
  */
 
@@ -19,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('VANDEL_BOOKING_VERSION', '1.0.1');
+define('VANDEL_BOOKING_VERSION', '1.0.2');
 define('VANDEL_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('VANDEL_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 
