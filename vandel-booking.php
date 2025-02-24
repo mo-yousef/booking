@@ -5,7 +5,7 @@ namespace VandelBooking;
  * Plugin Name: Vandel Booking
  * Plugin URI: https://example.com/vandel-booking
  * Description: A comprehensive booking plugin supporting location-based bookings and variable pricing.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Your Name
  * Author URI: https://example.com
  * Text Domain: vandel-booking
