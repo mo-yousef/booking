@@ -4,6 +4,12 @@ jQuery(document).ready(function ($) {
   const optionsContainer = $(".vb-service-options-list");
   let currentOptionIndex = $(".vb-service-option").length;
 
+  // Make sure all option content is collapsed by default
+  $(".vb-option-content").hide();
+  $(".vb-option-toggle")
+    .removeClass("dashicons-arrow-up-alt2")
+    .addClass("dashicons-arrow-down-alt2");
+
   // Make options sortable
   optionsContainer.sortable({
     handle: ".vb-option-sort",
@@ -15,108 +21,110 @@ jQuery(document).ready(function ($) {
     },
   });
 
-  // Make choices sortable within each option
-  $(".vb-option-choices-list").sortable({
-    handle: ".vb-choice-sort",
-    items: ".vb-option-choice",
-    axis: "y",
-    update: function () {
-      // Reindex choices after sorting
-      const optionIndex = $(this).closest(".vb-service-option").data("index");
+  // Initialize sortable for choice lists
+  initChoicesSortable();
+
+  // Add new option - ONLY bind once
+  $(".vb-add-option")
+    .off("click")
+    .on("click", function () {
+      $.ajax({
+        url: vbServiceOptions.ajaxurl,
+        type: "POST",
+        data: {
+          action: "vb_get_option_template",
+          nonce: vbServiceOptions.nonce,
+          index: currentOptionIndex,
+        },
+        success: function (response) {
+          if (response.success) {
+            optionsContainer.append(response.data.template);
+
+            // Make sure the new option content is collapsed by default
+            optionsContainer
+              .find(
+                '.vb-service-option[data-index="' +
+                  currentOptionIndex +
+                  '"] .vb-option-content'
+              )
+              .hide();
+
+            // Initialize sortable for new option choices
+            initChoicesSortable();
+
+            // Initialize default display states
+            updateOptionTypeDisplay(
+              optionsContainer.find(
+                '.vb-service-option[data-index="' + currentOptionIndex + '"]'
+              )
+            );
+
+            currentOptionIndex++;
+          }
+        },
+      });
+    });
+
+  // Toggle option content - Use delegated event handler
+  $(document)
+    .off("click", ".vb-option-toggle")
+    .on("click", ".vb-option-toggle", function () {
+      const content = $(this)
+        .closest(".vb-service-option")
+        .find(".vb-option-content");
+      content.slideToggle(300);
+      $(this).toggleClass("dashicons-arrow-down-alt2 dashicons-arrow-up-alt2");
+    });
+
+  // Remove option - Use delegated event handler
+  $(document)
+    .off("click", ".vb-option-remove")
+    .on("click", ".vb-option-remove", function () {
+      if (confirm("Are you sure you want to remove this option?")) {
+        $(this).closest(".vb-service-option").remove();
+        reindexOptions();
+      }
+    });
+
+  // Add choice - Use delegated event handler
+  $(document)
+    .off("click", ".vb-add-choice")
+    .on("click", ".vb-add-choice", function () {
+      const optionEl = $(this).closest(".vb-service-option");
+      const optionIndex = optionEl.data("index");
+      const choicesContainer = optionEl.find(".vb-option-choices-list");
+      const choiceIndex = choicesContainer.find(".vb-option-choice").length;
+
+      $.ajax({
+        url: vbServiceOptions.ajaxurl,
+        type: "POST",
+        data: {
+          action: "vb_get_choice_template",
+          nonce: vbServiceOptions.nonce,
+          option_index: optionIndex,
+          choice_index: choiceIndex,
+        },
+        success: function (response) {
+          if (response.success) {
+            choicesContainer.append(response.data.template);
+            initChoicesSortable();
+          }
+        },
+      });
+    });
+
+  // Remove choice - Use delegated event handler
+  $(document)
+    .off("click", ".vb-choice-remove")
+    .on("click", ".vb-choice-remove", function () {
+      const choiceEl = $(this).closest(".vb-option-choice");
+      const optionIndex = choiceEl.closest(".vb-service-option").data("index");
+
+      choiceEl.remove();
       reindexChoices(optionIndex);
-    },
-  });
-
-  // Add new option
-  $(".vb-add-option").on("click", function () {
-    $.ajax({
-      url: vbServiceOptions.ajaxurl,
-      type: "POST",
-      data: {
-        action: "vb_get_option_template",
-        nonce: vbServiceOptions.nonce,
-        index: currentOptionIndex,
-      },
-      success: function (response) {
-        if (response.success) {
-          optionsContainer.append(response.data.template);
-
-          // Initialize sortable for new option choices
-          optionsContainer
-            .find(
-              '.vb-service-option[data-index="' +
-                currentOptionIndex +
-                '"] .vb-option-choices-list'
-            )
-            .sortable({
-              handle: ".vb-choice-sort",
-              items: ".vb-option-choice",
-              axis: "y",
-              update: function () {
-                const optionIndex = $(this)
-                  .closest(".vb-service-option")
-                  .data("index");
-                reindexChoices(optionIndex);
-              },
-            });
-
-          currentOptionIndex++;
-        }
-      },
     });
-  });
 
-  // Toggle option content
-  $(document).on("click", ".vb-option-toggle", function () {
-    const content = $(this)
-      .closest(".vb-service-option")
-      .find(".vb-option-content");
-    content.slideToggle(300);
-    $(this).toggleClass("dashicons-arrow-down-alt2 dashicons-arrow-up-alt2");
-  });
-
-  // Remove option
-  $(document).on("click", ".vb-option-remove", function () {
-    if (confirm("Are you sure you want to remove this option?")) {
-      $(this).closest(".vb-service-option").remove();
-      reindexOptions();
-    }
-  });
-
-  // Add choice
-  $(document).on("click", ".vb-add-choice", function () {
-    const optionEl = $(this).closest(".vb-service-option");
-    const optionIndex = optionEl.data("index");
-    const choicesContainer = optionEl.find(".vb-option-choices-list");
-    const choiceIndex = choicesContainer.find(".vb-option-choice").length;
-
-    $.ajax({
-      url: vbServiceOptions.ajaxurl,
-      type: "POST",
-      data: {
-        action: "vb_get_choice_template",
-        nonce: vbServiceOptions.nonce,
-        option_index: optionIndex,
-        choice_index: choiceIndex,
-      },
-      success: function (response) {
-        if (response.success) {
-          choicesContainer.append(response.data.template);
-        }
-      },
-    });
-  });
-
-  // Remove choice
-  $(document).on("click", ".vb-choice-remove", function () {
-    const choiceEl = $(this).closest(".vb-option-choice");
-    const optionIndex = choiceEl.closest(".vb-service-option").data("index");
-
-    choiceEl.remove();
-    reindexChoices(optionIndex);
-  });
-
-  // Update option title in header when title input changes
+  // Update option title in header when title input changes - Use delegated event handler
   $(document).on("change keyup", ".vb-option-title-input", function () {
     const title = $(this).val() || "New Option";
     $(this)
@@ -125,11 +133,61 @@ jQuery(document).ready(function ($) {
       .text(title);
   });
 
-  // Change display based on option type
+  // Change display based on option type - Use delegated event handler
   $(document).on("change", ".vb-option-type-select", function () {
-    const type = $(this).val();
     const optionEl = $(this).closest(".vb-service-option");
+    updateOptionTypeDisplay(optionEl);
+  });
+
+  // Prevent multiple defaults for radio and dropdown - Use delegated event handler
+  $(document).on(
+    "change",
+    '.vb-choice-default input[type="checkbox"]',
+    function () {
+      if ($(this).prop("checked")) {
+        const optionEl = $(this).closest(".vb-service-option");
+        const type = optionEl.find(".vb-option-type-select").val();
+
+        // For radio and dropdown, only one default is allowed
+        if (type === "radio" || type === "dropdown") {
+          optionEl
+            .find('.vb-choice-default input[type="checkbox"]')
+            .not(this)
+            .prop("checked", false);
+        }
+      }
+    }
+  );
+
+  // Initialize option type display for existing options
+  $(".vb-service-option").each(function () {
+    updateOptionTypeDisplay($(this));
+  });
+
+  // Helper function to initialize sortable for choice lists
+  function initChoicesSortable() {
+    $(".vb-option-choices-list").each(function () {
+      if (!$(this).hasClass("ui-sortable")) {
+        $(this).sortable({
+          handle: ".vb-choice-sort",
+          items: ".vb-option-choice",
+          axis: "y",
+          update: function () {
+            const optionIndex = $(this)
+              .closest(".vb-service-option")
+              .data("index");
+            reindexChoices(optionIndex);
+          },
+        });
+      }
+    });
+  }
+
+  // Helper function to update option type display
+  function updateOptionTypeDisplay(optionEl) {
+    const type = optionEl.find(".vb-option-type-select").val();
     const choicesContainer = optionEl.find(".vb-option-choices-container");
+    const priceType = optionEl.find(".vb-option-price-type-select").val();
 
     choicesContainer.attr("data-type", type);
 
@@ -154,60 +212,24 @@ jQuery(document).ready(function ($) {
         .attr("placeholder", "Choice label");
       choicesContainer.find(".vb-choice-default").show();
     }
-  });
 
-  // Change price type options based on option type
-  $(document).on(
-    "change",
-    ".vb-option-type-select, .vb-option-price-type-select",
-    function () {
-      const optionEl = $(this).closest(".vb-service-option");
-      const type = optionEl.find(".vb-option-type-select").val();
-      const priceType = optionEl.find(".vb-option-price-type-select").val();
+    // If number input, we can enable multiply price type
+    if (type === "number") {
+      optionEl
+        .find('.vb-option-price-type-select option[value="multiply"]')
+        .prop("disabled", false);
+    } else {
+      const multiplyOption = optionEl.find(
+        '.vb-option-price-type-select option[value="multiply"]'
+      );
+      multiplyOption.prop("disabled", true);
 
-      // If number input, we can enable multiply price type
-      if (type === "number") {
-        optionEl
-          .find('.vb-option-price-type-select option[value="multiply"]')
-          .prop("disabled", false);
-      } else {
-        const multiplyOption = optionEl.find(
-          '.vb-option-price-type-select option[value="multiply"]'
-        );
-        multiplyOption.prop("disabled", true);
-
-        // If currently selected, switch to fixed
-        if (priceType === "multiply") {
-          optionEl.find(".vb-option-price-type-select").val("fixed");
-        }
+      // If currently selected, switch to fixed
+      if (priceType === "multiply") {
+        optionEl.find(".vb-option-price-type-select").val("fixed");
       }
     }
-  );
-
-  // Prevent multiple defaults for radio and dropdown
-  $(document).on(
-    "change",
-    '.vb-choice-default input[type="checkbox"]',
-    function () {
-      if ($(this).prop("checked")) {
-        const optionEl = $(this).closest(".vb-service-option");
-        const type = optionEl.find(".vb-option-type-select").val();
-
-        // For radio and dropdown, only one default is allowed
-        if (type === "radio" || type === "dropdown") {
-          optionEl
-            .find('.vb-choice-default input[type="checkbox"]')
-            .not(this)
-            .prop("checked", false);
-        }
-      }
-    }
-  );
-
-  // Initialize option type display
-  $(".vb-option-type-select").each(function () {
-    $(this).trigger("change");
-  });
+  }
 
   // Reindex options
   function reindexOptions() {
@@ -297,5 +319,11 @@ jQuery(document).ready(function ($) {
   // Add first option if none exist
   if ($(".vb-service-option").length === 0) {
     $(".vb-add-option").trigger("click");
+  }
+
+  // Hide the redundant Service Settings section when Service Options is present
+  if ($("#vb_service_options").length) {
+    // Find the Service Settings metabox and hide it or its content
+    $("#service_settings, .service-settings-metabox").hide();
   }
 });

@@ -1,194 +1,77 @@
 <!-- templates/booking-form.php -->
 <div class="vb-booking-form" data-service-id="<?php echo esc_attr($service->ID); ?>">
-    <div class="vb-form-progress">
-        <ul>
-            <li class="active" data-step="1"><?php _e('Service', 'vandel-booking'); ?></li>
-            <li data-step="2"><?php _e('Options', 'vandel-booking'); ?></li>
-            <li data-step="3"><?php _e('Date & Time', 'vandel-booking'); ?></li>
-            <li data-step="4"><?php _e('Your Info', 'vandel-booking'); ?></li>
-            <li data-step="5"><?php _e('Payment', 'vandel-booking'); ?></li>
-        </ul>
-    </div>
-
     <div class="vb-step" data-step="1">
-        <h3><?php _e('Service Details', 'vandel-booking'); ?></h3>
-        <div class="vb-service-info">
-            <h4><?php echo esc_html($service->post_title); ?></h4>
-            <div class="vb-service-description">
-                <?php echo wp_kses_post(get_post_meta($service->ID, 'vb_short_description', true)); ?>
-            </div>
-            <div class="vb-service-price">
-                <?php
-                $price = get_post_meta($service->ID, 'vb_regular_price', true);
-                $sale_price = get_post_meta($service->ID, 'vb_sale_price', true);
-                
-                if ($sale_price && $sale_price < $price) {
-                    echo '<span class="vb-regular-price">' . esc_html(number_format($price, 2)) . '</span>';
-                    echo '<span class="vb-sale-price">' . esc_html(number_format($sale_price, 2)) . '</span>';
-                } else {
-                    echo '<span class="vb-price">' . esc_html(number_format($price, 2)) . '</span>';
-                }
-                ?>
-            </div>
-        </div>
-        <button type="button" class="vb-next-step" data-next="2"><?php _e('Continue', 'vandel-booking'); ?></button>
-    </div>
-
-    <div class="vb-step" data-step="2" style="display: none;">
-        <h3><?php _e('Customize Your Service', 'vandel-booking'); ?></h3>
+        <h3><?php _e('Step 1: Select Service', 'vandel-booking'); ?></h3>
         
-        <?php
-        // Get service options
-        $service_options = new ServiceOptions();
-        $options = $service_options->get_service_options($service->ID);
+        <?php 
+        // Get sub-services for this service if the service instance exists
+        $sub_services = array();
+        if (isset($this->service) && method_exists($this->service, 'get_sub_services')) {
+            $sub_services = $this->service->get_sub_services($service->ID);
+        }
         ?>
-        
-        <?php if (!empty($options)) : ?>
-            <div class="vb-options-container">
-                <?php foreach ($options as $option_index => $option) : ?>
-                    <div class="vb-option-group" data-option-index="<?php echo esc_attr($option_index); ?>" data-option-type="<?php echo esc_attr($option['type']); ?>" data-price-type="<?php echo esc_attr($option['price_type']); ?>">
-                        <h4><?php echo esc_html($option['title']); ?></h4>
-                        
-                        <?php if (!empty($option['description'])) : ?>
-                            <p class="vb-option-description"><?php echo wp_kses_post($option['description']); ?></p>
-                        <?php endif; ?>
-                        
-                        <div class="vb-option-field">
-                            <?php 
-                            $field_name = 'vb_option_' . $option_index;
-                            $field_id = 'vb_option_' . $option_index;
-                            $required = !empty($option['required']) ? 'required' : '';
+
+        <?php if (!empty($top_level_services) && is_array($top_level_services)) : ?>
+            <div class="vb-services-list">
+                <?php foreach ($top_level_services as $service_item) : ?>
+                    <?php if ($service_item && is_object($service_item)) : ?>
+                        <div class="vb-service-item" data-service-id="<?php echo esc_attr($service_item->ID); ?>">
+                            <h4><?php echo esc_html($service_item->post_title); ?></h4>
                             
-                            switch ($option['type']) {
-                                case 'text':
-                                    $default = !empty($option['choices'][0]['label']) ? $option['choices'][0]['label'] : '';
-                                    ?>
-                                    <input type="text" 
-                                           id="<?php echo esc_attr($field_id); ?>" 
-                                           name="<?php echo esc_attr($field_name); ?>" 
-                                           value="<?php echo esc_attr($default); ?>"
-                                           <?php echo $required; ?>
-                                           class="vb-option-input"
-                                           data-price="<?php echo esc_attr(!empty($option['choices'][0]['price']) ? $option['choices'][0]['price'] : 0); ?>"
-                                           >
-                                    <?php
-                                    break;
-                                    
-                                case 'textarea':
-                                    $default = !empty($option['choices'][0]['label']) ? $option['choices'][0]['label'] : '';
-                                    ?>
-                                    <textarea id="<?php echo esc_attr($field_id); ?>" 
-                                              name="<?php echo esc_attr($field_name); ?>" 
-                                              <?php echo $required; ?>
-                                              class="vb-option-input"
-                                              data-price="<?php echo esc_attr(!empty($option['choices'][0]['price']) ? $option['choices'][0]['price'] : 0); ?>"
-                                              rows="4"><?php echo esc_textarea($default); ?></textarea>
-                                    <?php
-                                    break;
-                                    
-                                case 'number':
-                                    $default = !empty($option['choices'][0]['label']) ? $option['choices'][0]['label'] : '';
-                                    ?>
-                                    <input type="number" 
-                                           id="<?php echo esc_attr($field_id); ?>" 
-                                           name="<?php echo esc_attr($field_name); ?>" 
-                                           value="<?php echo esc_attr($default); ?>"
-                                           min="0"
-                                           step="1"
-                                           <?php echo $required; ?>
-                                           class="vb-option-input vb-option-number"
-                                           data-price="<?php echo esc_attr(!empty($option['choices'][0]['price']) ? $option['choices'][0]['price'] : 0); ?>"
-                                           >
-                                    <?php
-                                    break;
-                                    
-                                case 'dropdown':
-                                    ?>
-                                    <select id="<?php echo esc_attr($field_id); ?>" 
-                                            name="<?php echo esc_attr($field_name); ?>" 
-                                            <?php echo $required; ?>
-                                            class="vb-option-input vb-option-select">
-                                        <?php foreach ($option['choices'] as $choice_index => $choice) : ?>
-                                            <option value="<?php echo esc_attr($choice_index); ?>" 
-                                                    data-price="<?php echo esc_attr(!empty($choice['price']) ? $choice['price'] : 0); ?>"
-                                                    <?php selected(!empty($choice['default']), true); ?>>
-                                                <?php echo esc_html($choice['label']); ?>
-                                                <?php if (!empty($choice['price']) && $choice['price'] > 0) : ?>
-                                                    (+ <?php echo esc_html(number_format($choice['price'], 2)); ?>)
-                                                <?php endif; ?>
+                            <?php 
+                            // Get sub-services for this service item if the service instance exists
+                            $item_sub_services = array();
+                            if (isset($this->service) && method_exists($this->service, 'get_sub_services')) {
+                                $item_sub_services = $this->service->get_sub_services($service_item->ID);
+                            }
+                            ?>
+                            
+                            <?php if (!empty($item_sub_services)) : ?>
+                                <div class="vb-sub-services">
+                                    <label><?php _e('Choose a sub-service:', 'vandel-booking'); ?></label>
+                                    <select class="vb-sub-service-select">
+                                        <option value=""><?php _e('Select sub-service', 'vandel-booking'); ?></option>
+                                        <?php foreach ($item_sub_services as $sub) : ?>
+                                            <option value="<?php echo esc_attr($sub->ID); ?>">
+                                                <?php 
+                                                echo esc_html($sub->post_title); 
+                                                $price = get_post_meta($sub->ID, 'vb_regular_price', true);
+                                                if ($price) {
+                                                    echo ' - ' . esc_html(number_format($price, 2));
+                                                }
+                                                ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <?php
-                                    break;
-                                    
-                                case 'radio':
-                                    foreach ($option['choices'] as $choice_index => $choice) :
-                                        $choice_id = $field_id . '_' . $choice_index;
-                                        ?>
-                                        <div class="vb-radio-option">
-                                            <label>
-                                                <input type="radio" 
-                                                       id="<?php echo esc_attr($choice_id); ?>" 
-                                                       name="<?php echo esc_attr($field_name); ?>" 
-                                                       value="<?php echo esc_attr($choice_index); ?>"
-                                                       data-price="<?php echo esc_attr(!empty($choice['price']) ? $choice['price'] : 0); ?>"
-                                                       class="vb-option-input vb-option-radio"
-                                                       <?php checked(!empty($choice['default']), true); ?>
-                                                       <?php echo $required; ?>>
-                                                <?php echo esc_html($choice['label']); ?>
-                                                <?php if (!empty($choice['price']) && $choice['price'] > 0) : ?>
-                                                    <span class="vb-option-price">(+ <?php echo esc_html(number_format($choice['price'], 2)); ?>)</span>
-                                                <?php endif; ?>
-                                            </label>
-                                        </div>
-                                    <?php endforeach;
-                                    break;
-                                    
-                                case 'checkbox':
-                                    foreach ($option['choices'] as $choice_index => $choice) :
-                                        $choice_id = $field_id . '_' . $choice_index;
-                                        ?>
-                                        <div class="vb-checkbox-option">
-                                            <label>
-                                                <input type="checkbox" 
-                                                       id="<?php echo esc_attr($choice_id); ?>" 
-                                                       name="<?php echo esc_attr($field_name); ?>[]" 
-                                                       value="<?php echo esc_attr($choice_index); ?>"
-                                                       data-price="<?php echo esc_attr(!empty($choice['price']) ? $choice['price'] : 0); ?>"
-                                                       class="vb-option-input vb-option-checkbox"
-                                                       <?php checked(!empty($choice['default']), true); ?>>
-                                                <?php echo esc_html($choice['label']); ?>
-                                                <?php if (!empty($choice['price']) && $choice['price'] > 0) : ?>
-                                                    <span class="vb-option-price">(+ <?php echo esc_html(number_format($choice['price'], 2)); ?>)</span>
-                                                <?php endif; ?>
-                                            </label>
-                                        </div>
-                                    <?php endforeach;
-                                    break;
-                            }
-                            ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="vb-service-price">
+                                <?php
+                                $price = get_post_meta($service_item->ID, 'vb_regular_price', true);
+                                if ($price) :
+                                    echo esc_html(sprintf(__('Starting from %s', 'vandel-booking'), 
+                                        number_format($price, 2)));
+                                endif;
+                                ?>
+                            </div>
+
+                            <button type="button" class="vb-select-service">
+                                <?php _e('Select', 'vandel-booking'); ?>
+                            </button>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         <?php else : ?>
-            <p><?php _e('No customization options available for this service.', 'vandel-booking'); ?></p>
+            <p><?php _e('No services available.', 'vandel-booking'); ?></p>
         <?php endif; ?>
-        
-        <div class="vb-running-total">
-            <div class="vb-total-label"><?php _e('Current Total:', 'vandel-booking'); ?></div>
-            <div class="vb-total-amount"></div>
-        </div>
-        
-        <button type="button" class="vb-prev-step" data-prev="1"><?php _e('Back', 'vandel-booking'); ?></button>
-        <button type="button" class="vb-next-step" data-next="3"><?php _e('Continue', 'vandel-booking'); ?></button>
     </div>
 
-    <div class="vb-step" data-step="3" style="display: none;">
-        <h3><?php _e('Choose Date & Time', 'vandel-booking'); ?></h3>
+    <div class="vb-step" data-step="2" style="display: none;">
+        <h3><?php _e('Step 2: Date & Time', 'vandel-booking'); ?></h3>
         <div class="vb-form-row">
-            <label for="vb-zip-code"><?php _e('Your ZIP Code', 'vandel-booking'); ?></label>
+            <label for="vb-zip-code"><?php _e('ZIP Code', 'vandel-booking'); ?></label>
             <input type="text" 
                    id="vb-zip-code" 
                    name="zip_code" 
@@ -196,11 +79,10 @@
                    maxlength="5" 
                    placeholder="<?php _e('Enter 5-digit ZIP code', 'vandel-booking'); ?>" 
                    required>
-            <span class="vb-help-text"><?php _e('We need your ZIP code to check service availability in your area.', 'vandel-booking'); ?></span>
         </div>
 
         <div class="vb-form-row">
-            <label for="vb-booking-date"><?php _e('Preferred Date', 'vandel-booking'); ?></label>
+            <label for="vb-booking-date"><?php _e('Select Date', 'vandel-booking'); ?></label>
             <input type="date" 
                    id="vb-booking-date" 
                    name="booking_date" 
@@ -210,20 +92,20 @@
 
         <div class="vb-form-row">
             <label><?php _e('Available Time Slots', 'vandel-booking'); ?></label>
-            <div id="vb-time-slots" class="vb-time-slots">
-                <!-- Time slots will be populated via AJAX -->
-                <div class="vb-time-slots-message">
-                    <?php _e('Please enter your ZIP code and select a date to view available time slots.', 'vandel-booking'); ?>
+            <div class="vb-time-slot-container">
+                <div id="vb-time-slots" class="vb-time-slots">
+                    <!-- Time slots will be dynamically populated here -->
+                    <div class="vb-time-slots-message"><?php _e('Please select a date and enter your ZIP code to see available time slots.', 'vandel-booking'); ?></div>
                 </div>
             </div>
         </div>
 
-        <button type="button" class="vb-prev-step" data-prev="2"><?php _e('Back', 'vandel-booking'); ?></button>
-        <button type="button" class="vb-next-step" data-next="4"><?php _e('Continue', 'vandel-booking'); ?></button>
+        <button type="button" class="vb-prev-step" data-prev="1"><?php _e('Previous', 'vandel-booking'); ?></button>
+        <button type="button" class="vb-next-step" data-next="3"><?php _e('Next', 'vandel-booking'); ?></button>
     </div>
 
-    <div class="vb-step" data-step="4" style="display: none;">
-        <h3><?php _e('Your Information', 'vandel-booking'); ?></h3>
+    <div class="vb-step" data-step="3" style="display: none;">
+        <h3><?php _e('Step 3: Your Information', 'vandel-booking'); ?></h3>
         <div class="vb-form-row">
             <label for="vb-customer-name"><?php _e('Full Name', 'vandel-booking'); ?></label>
             <input type="text" id="vb-customer-name" name="customer_name" required>
@@ -240,23 +122,18 @@
             <label for="vb-customer-notes"><?php _e('Special Instructions', 'vandel-booking'); ?></label>
             <textarea id="vb-customer-notes" name="customer_notes" rows="3"></textarea>
         </div>
-        <button type="button" class="vb-prev-step" data-prev="3"><?php _e('Back', 'vandel-booking'); ?></button>
-        <button type="button" class="vb-next-step" data-next="5"><?php _e('Continue', 'vandel-booking'); ?></button>
+        <button type="button" class="vb-prev-step" data-prev="2"><?php _e('Previous', 'vandel-booking'); ?></button>
+        <button type="button" class="vb-next-step" data-next="4"><?php _e('Next', 'vandel-booking'); ?></button>
     </div>
 
-    <div class="vb-step" data-step="5" style="display: none;">
-        <h3><?php _e('Review & Payment', 'vandel-booking'); ?></h3>
+    <div class="vb-step" data-step="4" style="display: none;">
+        <h3><?php _e('Step 4: Review & Payment', 'vandel-booking'); ?></h3>
         <div class="vb-booking-summary">
             <h4><?php _e('Booking Summary', 'vandel-booking'); ?></h4>
             <div class="vb-summary-row">
                 <span class="vb-summary-label"><?php _e('Service', 'vandel-booking'); ?></span>
-                <span class="vb-summary-value"><?php echo esc_html($service->post_title); ?></span>
+                <span class="vb-summary-value" id="vb-summary-service"><?php echo esc_html($service->post_title); ?></span>
             </div>
-            
-            <div class="vb-selected-options-summary">
-                <!-- Selected options will be displayed here -->
-            </div>
-            
             <div class="vb-summary-row">
                 <span class="vb-summary-label"><?php _e('Date & Time', 'vandel-booking'); ?></span>
                 <span class="vb-summary-value" id="vb-summary-datetime"></span>
@@ -267,16 +144,11 @@
             </div>
             <div class="vb-pricing-breakdown">
                 <div class="vb-summary-row">
-                    <span class="vb-summary-label"><?php _e('Base Price', 'vandel-booking'); ?></span>
-                    <span class="vb-summary-value" id="vb-summary-base-price"></span>
+                    <span class="vb-summary-label"><?php _e('Service Price', 'vandel-booking'); ?></span>
+                    <span class="vb-summary-value" id="vb-summary-price"></span>
                 </div>
-                
-                <div class="vb-options-price-summary">
-                    <!-- Option prices will be listed here -->
-                </div>
-                
-                <?php if (get_post_meta($service->ID, 'vb_tax_rate', true)): ?>
-                    <div class="vb-summary-row">
+                <?php if (!empty($service_data['tax_rate'])) : ?>
+                    <div class="vb-summary-row tax-row">
                         <span class="vb-summary-label"><?php _e('Tax', 'vandel-booking'); ?></span>
                         <span class="vb-summary-value" id="vb-summary-tax"></span>
                     </div>
@@ -301,7 +173,7 @@
                 </div>
             </div>
 
-            <?php if (get_post_meta($service->ID, 'vb_enable_deposit', true)): ?>
+            <?php if (!empty($service_data['enable_deposit'])) : ?>
                 <div class="vb-deposit-option">
                     <label>
                         <input type="checkbox" name="pay_deposit" value="1">
@@ -318,11 +190,11 @@
             </div>
         </div>
 
-        <button type="button" class="vb-prev-step" data-prev="4"><?php _e('Back', 'vandel-booking'); ?></button>
+        <button type="button" class="vb-prev-step" data-prev="3"><?php _e('Previous', 'vandel-booking'); ?></button>
         <button type="submit" class="vb-submit-booking"><?php _e('Complete Booking', 'vandel-booking'); ?></button>
     </div>
 
-    <div class="vb-step" data-step="6" style="display: none;">
+    <div class="vb-step" data-step="5" style="display: none;">
         <h3><?php _e('Booking Confirmed', 'vandel-booking'); ?></h3>
         <div class="vb-confirmation-message">
             <div class="vb-success-icon">✓</div>
@@ -334,34 +206,27 @@
             </div>
         </div>
     </div>
+    
+    <!-- Loading Overlay -->
+    <div class="vb-loading-overlay">
+        <div class="vb-loading-spinner"></div>
+    </div>
 </div>
 
-
 <?php
-// Debug output
+// Debug output if WP_DEBUG is enabled
 if (defined('WP_DEBUG') && WP_DEBUG) {
-    $debug_services = get_posts(array(
-        'post_type' => 'vb_service',
-        'posts_per_page' => -1,
-    ));
-
     echo '<div style="background: #f5f5f5; padding: 10px; margin: 10px 0;">';
     echo '<h4>Debug Information:</h4>';
-
-    foreach ($debug_services as $service) {
-        $parent_id = get_post_meta($service->ID, '_vb_parent_service', true);
-        echo sprintf(
-            'Service: %s (ID: %d) - Parent ID: %s<br>',
-            esc_html($service->post_title),
-            $service->ID,
-            $parent_id ? $parent_id : 'None'
-        );
+    
+    echo '<div>Service object exists: ' . (isset($service) && is_object($service) ? 'Yes' : 'No') . '</div>';
+    echo '<div>Service ID: ' . (isset($service) && is_object($service) ? $service->ID : 'N/A') . '</div>';
+    echo '<div>Service class exists: ' . (isset($this->service) ? 'Yes' : 'No') . '</div>';
+    
+    if (isset($this->service)) {
+        echo '<div>get_sub_services method exists: ' . (method_exists($this->service, 'get_sub_services') ? 'Yes' : 'No') . '</div>';
     }
-
-    if (!isset($this->service)) {
-        echo '<div style="color: red;">Service object not available!</div>';
-    }
-
+    
     echo '</div>';
 }
 ?>

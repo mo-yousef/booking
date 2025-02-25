@@ -2,9 +2,9 @@
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#003b9b",
     "activityBar.background": "#003b9b",
-    "activityBar.foreground": "#dfdf27",
+    "activityBar.foreground": "#ffffff",
     "activityBar.inactiveForeground": "#ffffff",
-    "activityBarBadge.background": "#945bc4",
+    "activityBarBadge.background": "#000000",
     "activityBarBadge.foreground": "#e7e7e7",
     "commandCenter.border": "#ffffff",
     "sash.hoverBorder": "#003b9b",

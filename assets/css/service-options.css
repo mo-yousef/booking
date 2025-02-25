@@ -34,10 +34,11 @@
 
 .vb-option-actions {
     display: flex;
-    gap: 8px;
+    align-items: center;
 }
 
 .vb-option-actions span {
+    margin-left: 8px;
     cursor: pointer;
     color: #72777c;
 }
@@ -46,19 +47,25 @@
     color: #0073aa;
 }
 
-.vb-option-actions .vb-option-remove:hover {
-    color: #dc3232;
+.vb-option-sort {
+    cursor: move;
+}
+
+.vb-option-remove:hover {
+    color: #dc3232 !important;
 }
 
 .vb-option-content {
     padding: 15px;
+    display: none;
+    /* Hidden by default */
 }
 
 .vb-option-row {
+    margin-bottom: 15px;
     display: flex;
     flex-wrap: wrap;
-    margin-bottom: 15px;
-    gap: 20px;
+    gap: 10px;
 }
 
 .vb-option-field {
@@ -73,27 +80,26 @@
 }
 
 .vb-option-field input[type="text"],
-.vb-option-field input[type="number"],
 .vb-option-field select,
 .vb-option-field textarea {
     width: 100%;
 }
 
 .vb-option-choices-container {
-    margin-top: 20px;
+    margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid #eee;
 }
 
 .vb-option-choices-list {
-    margin-bottom: 15px;
+    margin: 10px 0;
 }
 
 .vb-option-choice {
-    margin-bottom: 10px;
-    padding: 10px;
-    background: #f9f9f9;
+    margin-bottom: 8px;
+    padding: 8px;
     border: 1px solid #eee;
+    background: #f9f9f9;
     border-radius: 3px;
 }
 
@@ -104,7 +110,7 @@
 }
 
 .vb-choice-field {
-    margin-right: 10px;
+    flex: 1;
 }
 
 .vb-choice-label {
@@ -117,53 +123,63 @@
 }
 
 .vb-choice-default {
-    flex: 1;
-    max-width: 100px;
+    flex: 0;
+    min-width: 80px;
 }
 
 .vb-choice-actions {
     display: flex;
+    align-items: center;
     gap: 5px;
 }
 
-.vb-choice-actions span {
+.vb-choice-remove {
     cursor: pointer;
-    color: #72777c;
-}
-
-.vb-choice-actions .vb-choice-remove:hover {
     color: #dc3232;
 }
 
-.vb-choice-actions .vb-choice-sort:hover {
-    color: #0073aa;
+.vb-choice-sort {
+    cursor: move;
+    color: #72777c;
 }
 
-/* Specific styles based on option type */
-.vb-option-choices-container[data-type="number"] .vb-choice-label input,
-.vb-option-choices-container[data-type="text"] .vb-choice-label input,
-.vb-option-choices-container[data-type="textarea"] .vb-choice-label input {
-    font-style: italic;
+.vb-add-choice {
+    margin-top: 10px !important;
 }
 
-.vb-option-choices-container[data-type="number"] .vb-add-choice,
+/* Option type specific styles */
 .vb-option-choices-container[data-type="text"] .vb-add-choice,
-.vb-option-choices-container[data-type="textarea"] .vb-add-choice {
+.vb-option-choices-container[data-type="textarea"] .vb-add-choice,
+.vb-option-choices-container[data-type="number"] .vb-add-choice {
     display: none;
 }
 
-/* Drag and drop visual cues */
-.vb-service-option.ui-sortable-helper,
-.vb-option-choice.ui-sortable-helper {
-    border: 1px dashed #0073aa;
-    background: #f7fcff;
-    opacity: 0.8;
+/* Responsive adjustments */
+@media (max-width: 782px) {
+    .vb-option-row {
+        flex-direction: column;
+    }
+
+    .vb-option-field {
+        min-width: 100%;
+    }
+
+    .vb-choice-row {
+        flex-wrap: wrap;
+    }
+
+    .vb-choice-field {
+        min-width: 100%;
+    }
 }
 
-.vb-service-options-list.ui-sortable-placeholder,
-.vb-option-choices-list.ui-sortable-placeholder {
-    border: 1px dashed #ddd;
-    background: #f9f9f9;
-    height: 60px;
-    visibility: visible !important;
+/* Fix for WordPress admin */
+.vb-service-options-container .button {
+    margin: 0 5px 5px 0;
+}
+
+/* Ensure the Service Options has precedence over old settings */
+#vb_service_options {
+    z-index: 10;
+    position: relative;
 }

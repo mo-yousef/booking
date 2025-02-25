@@ -14,6 +14,16 @@ class ServiceOptions {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_vb_get_option_template', array($this, 'ajax_get_option_template'));
         add_action('wp_ajax_vb_get_choice_template', array($this, 'ajax_get_choice_template'));
+        
+        // Remove old settings metabox if it exists
+        add_action('add_meta_boxes', array($this, 'remove_old_settings_metabox'), 20);
+    }
+
+    /**
+     * Remove old settings metabox if it exists
+     */
+    public function remove_old_settings_metabox() {
+        remove_meta_box('service_settings', 'vb_service', 'normal');
     }
 
     /**
@@ -33,6 +43,18 @@ class ServiceOptions {
                 ));
                 
                 wp_enqueue_style('vb-service-options', VANDEL_BOOKING_PLUGIN_URL . 'assets/css/service-options.css', array(), VANDEL_BOOKING_VERSION);
+                
+                // Add small script to hide duplicate settings
+                add_action('admin_footer', function() {
+                    ?>
+                    <script type="text/javascript">
+                        jQuery(document).ready(function($) {
+                            // Hide any duplicate settings metaboxes
+                            $('#service_settings, .service-settings-metabox').hide();
+                        });
+                    </script>
+                    <?php
+                });
             }
         }
     }
@@ -194,7 +216,9 @@ class ServiceOptions {
                                 id="vb_option_price_type_<?php echo esc_attr($index); ?>" 
                                 class="vb-option-price-type-select">
                             <?php foreach ($price_types as $value => $label): ?>
-                                <option value="<?php echo esc_attr($value); ?>" <?php selected($option['price_type'], $value); ?>>
+                                <option value="<?php echo esc_attr($value); ?>" 
+                                       <?php selected($option['price_type'], $value); ?>
+                                       <?php disabled($value === 'multiply' && $option['type'] !== 'number', true); ?>>
                                     <?php echo esc_html($label); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -393,7 +417,7 @@ class ServiceOptions {
         return $sanitized;
     }
     
-    /**
+    /**Service Settings
      * Get service options for a specific service
      */
     public function get_service_options($service_id) {

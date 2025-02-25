@@ -30,6 +30,10 @@ booking/
 │ ├── booking-form.php
 │ └── ...
 └── vandel-booking.php
+
+[vandel_booking_form service_id="123"] - direct service booking
+[vandel_booking_form] - service selection first, then booking
+
 == Description ==
 
 Vandel Booking is a powerful WordPress plugin that enables businesses to manage their bookings, appointments, and services with ease. Whether you're a salon, consultant, trainer, or service provider, this plugin offers a robust solution for online scheduling.

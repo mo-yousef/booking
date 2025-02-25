@@ -22,10 +22,14 @@ class Admin {
         add_action('wp_ajax_vb_admin_update_booking', array($this, 'update_booking_status'));
         add_action('wp_ajax_vb_admin_update_pricing', array($this, 'update_service_pricing'));
         add_action('wp_ajax_vb_admin_create_coupon', array($this, 'create_coupon'));
+        add_action('wp_ajax_vb_admin_toggle_coupon', array($this, 'toggle_coupon'));
+        add_action('wp_ajax_vb_admin_delete_coupon', array($this, 'delete_coupon'));
 
-    add_action('add_meta_boxes', array($this, 'add_service_meta_boxes'));
-    add_action('save_post_vb_service', array($this, 'save_service_meta'));
-
+        // Only register the old service meta boxes if the new ServiceOptions class is not active
+        if (!class_exists('VandelBooking\\ServiceOptions')) {
+            add_action('add_meta_boxes', array($this, 'add_service_meta_boxes'));
+            add_action('save_post_vb_service', array($this, 'save_service_meta'));
+        }
     }
 
     /**
@@ -324,6 +328,90 @@ class Admin {
     }
 
     /**
+     * AJAX handler for toggling coupon status
+     */
+    public function toggle_coupon() {
+        check_ajax_referer('vb_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'vandel-booking')));
+        }
+
+        $coupon_id = isset($_POST['coupon_id']) ? intval($_POST['coupon_id']) : 0;
+        $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+
+        if (!$coupon_id || !$status) {
+            wp_send_json_error(array('message' => __('Missing required parameters.', 'vandel-booking')));
+        }
+
+        global $wpdb;
+        
+        $result = $wpdb->update(
+            $wpdb->prefix . 'vb_coupons',
+            array('status' => $status),
+            array('id' => $coupon_id),
+            array('%s'),
+            array('%d')
+        );
+
+        if ($result === false) {
+            wp_send_json_error(array('message' => __('Failed to update coupon status.', 'vandel-booking')));
+        }
+
+        wp_send_json_success(array(
+            'message' => __('Coupon status updated successfully.', 'vandel-booking')
+        ));
+    }
+
+    /**
+     * AJAX handler for deleting coupons
+     */
+    public function delete_coupon() {
+        check_ajax_referer('vb_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'vandel-booking')));
+        }
+
+        $coupon_id = isset($_POST['coupon_id']) ? intval($_POST['coupon_id']) : 0;
+
+        if (!$coupon_id) {
+            wp_send_json_error(array('message' => __('Missing required parameters.', 'vandel-booking')));
+        }
+
+        global $wpdb;
+        
+        // Start transaction
+        $wpdb->query('START TRANSACTION');
+
+        try {
+            // Delete coupon services relationships first
+            $wpdb->delete(
+                $wpdb->prefix . 'vb_coupon_services',
+                array('coupon_id' => $coupon_id),
+                array('%d')
+            );
+
+            // Delete the coupon
+            $wpdb->delete(
+                $wpdb->prefix . 'vb_coupons',
+                array('id' => $coupon_id),
+                array('%d')
+            );
+
+            $wpdb->query('COMMIT');
+
+            wp_send_json_success(array(
+                'message' => __('Coupon deleted successfully.', 'vandel-booking')
+            ));
+
+        } catch (\Exception $e) {
+            $wpdb->query('ROLLBACK');
+            wp_send_json_error(array('message' => __('Failed to delete coupon.', 'vandel-booking')));
+        }
+    }
+
+    /**
      * Get booking statistics
      */
     private function get_booking_statistics() {
@@ -598,127 +686,139 @@ class Admin {
         exit;
     }
 
-
-
-public function add_service_meta_boxes() {
-    add_meta_box(
-        'vb_service_settings',
-        __('Service Settings', 'vandel-booking'),
-        array($this, 'render_service_meta_box'),
-        'vb_service',
-        'normal',
-        'high'
-    );
-}
-
-public function render_service_meta_box($post) {
-    // Add nonce for security
-    wp_nonce_field('vb_service_meta_box', 'vb_service_meta_box_nonce');
-    
-    // Include the meta box template
-    include VANDEL_BOOKING_PLUGIN_DIR . 'templates/admin/service-meta-box.php';
-}
-
-public function save_service_meta($post_id) {
-    // Check if nonce is set
-    if (!isset($_POST['vb_service_meta_box_nonce'])) {
-        return;
+    /**
+     * Add service meta boxes - only used as fallback if ServiceOptions is not active
+     */
+    public function add_service_meta_boxes() {
+        add_meta_box(
+            'vb_service_settings',
+            __('Service Settings', 'vandel-booking'),
+            array($this, 'render_service_meta_box'),
+            'vb_service',
+            'normal',
+            'high'
+        );
     }
 
-    // Verify nonce
-    if (!wp_verify_nonce($_POST['vb_service_meta_box_nonce'], 'vb_service_meta_box')) {
-        return;
-    }
-
-    // If this is an autosave, don't do anything
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-        return;
-    }
-
-    // Check user permissions
-    if (!current_user_can('edit_post', $post_id)) {
-        return;
-    }
-
-    // Save general settings
-    $fields = array(
-        'vb_duration' => 'intval',
-        'vb_buffer_time' => 'intval',
-        'vb_max_bookings_per_day' => 'intval',
-        'vb_regular_price' => 'floatval',
-        'vb_sale_price' => 'floatval',
-        'vb_tax_rate' => 'floatval',
-        'vb_enable_scheduling' => 'intval',
-        'vb_enable_deposit' => 'intval',
-        'vb_deposit_type' => 'sanitize_text_field',
-        'vb_deposit_amount' => 'floatval'
-    );
-
-    foreach ($fields as $field => $sanitize_callback) {
-        if (isset($_POST[$field])) {
-            update_post_meta($post_id, $field, $sanitize_callback($_POST[$field]));
-        } else {
-            delete_post_meta($post_id, $field);
-        }
-    }
-
-    // Save location pricing
-    if (isset($_POST['vb_location_pricing']) && is_array($_POST['vb_location_pricing'])) {
-        $location_pricing = array();
-        foreach ($_POST['vb_location_pricing'] as $pricing) {
-            if (!empty($pricing['zip']) && isset($pricing['price'])) {
-                $location_pricing[] = array(
-                    'zip' => sanitize_text_field($pricing['zip']),
-                    'price' => floatval($pricing['price'])
-                );
-            }
-        }
-        update_post_meta($post_id, 'vb_location_pricing', $location_pricing);
-    } else {
-        delete_post_meta($post_id, 'vb_location_pricing');
-    }
-
-    // Save schedule settings
-    if (isset($_POST['vb_schedule']) && is_array($_POST['vb_schedule'])) {
-        $enabled_days = isset($_POST['vb_enabled_days']) ? $_POST['vb_enabled_days'] : array();
+    /**
+     * Render service meta box - only used as fallback
+     */
+    public function render_service_meta_box($post) {
+        // Add nonce for security
+        wp_nonce_field('vb_service_meta_box', 'vb_service_meta_box_nonce');
         
-        foreach ($_POST['vb_schedule'] as $day => $times) {
-            $schedule = array(
-                'enabled' => in_array($day, $enabled_days),
-                'start' => sanitize_text_field($times['start']),
-                'end' => sanitize_text_field($times['end'])
-            );
-            update_post_meta($post_id, 'vb_schedule_' . $day, $schedule);
-        }
+        // Include the meta box template
+        include VANDEL_BOOKING_PLUGIN_DIR . 'templates/admin/service-meta-box.php';
     }
 
-    // Save to pricing table for quick lookups
-    if (isset($_POST['vb_location_pricing']) && is_array($_POST['vb_location_pricing'])) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'vb_service_pricing';
+    /**
+     * Save service meta - only used as fallback
+     */
+    public function save_service_meta($post_id) {
+        // Check if ServiceOptions is active and handling this
+        if (class_exists('VandelBooking\\ServiceOptions')) {
+            return;
+        }
+        
+        // Check if nonce is set
+        if (!isset($_POST['vb_service_meta_box_nonce'])) {
+            return;
+        }
 
-        // Delete existing prices for this service
-        $wpdb->delete(
-            $table_name,
-            array('service_id' => $post_id),
-            array('%d')
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['vb_service_meta_box_nonce'], 'vb_service_meta_box')) {
+            return;
+        }
+
+        // If this is an autosave, don't do anything
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        // Check user permissions
+        if (!current_user_can('edit_post', $post_id)) {
+            return;
+        }
+
+        // Save general settings
+        $fields = array(
+            'vb_duration' => 'intval',
+            'vb_buffer_time' => 'intval',
+            'vb_max_bookings_per_day' => 'intval',
+            'vb_regular_price' => 'floatval',
+            'vb_sale_price' => 'floatval',
+            'vb_tax_rate' => 'floatval',
+            'vb_enable_scheduling' => 'intval',
+            'vb_enable_deposit' => 'intval',
+            'vb_deposit_type' => 'sanitize_text_field',
+            'vb_deposit_amount' => 'floatval'
         );
 
-        // Insert new prices
-        foreach ($_POST['vb_location_pricing'] as $pricing) {
-            if (!empty($pricing['zip']) && isset($pricing['price'])) {
-                $wpdb->insert(
-                    $table_name,
-                    array(
-                        'service_id' => $post_id,
-                        'zip_code' => sanitize_text_field($pricing['zip']),
-                        'price' => floatval($pricing['price']),
-                        'created_at' => current_time('mysql')
-                    ),
-                    array('%d', '%s', '%f', '%s')
+        foreach ($fields as $field => $sanitize_callback) {
+            if (isset($_POST[$field])) {
+                update_post_meta($post_id, $field, $sanitize_callback($_POST[$field]));
+            } else {
+                delete_post_meta($post_id, $field);
+            }
+        }
+
+        // Save location pricing
+        if (isset($_POST['vb_location_pricing']) && is_array($_POST['vb_location_pricing'])) {
+            $location_pricing = array();
+            foreach ($_POST['vb_location_pricing'] as $pricing) {
+                if (!empty($pricing['zip']) && isset($pricing['price'])) {
+                    $location_pricing[] = array(
+                        'zip' => sanitize_text_field($pricing['zip']),
+                        'price' => floatval($pricing['price'])
+                    );
+                }
+            }
+            update_post_meta($post_id, 'vb_location_pricing', $location_pricing);
+        } else {
+            delete_post_meta($post_id, 'vb_location_pricing');
+        }
+
+        // Save schedule settings
+        if (isset($_POST['vb_schedule']) && is_array($_POST['vb_schedule'])) {
+            $enabled_days = isset($_POST['vb_enabled_days']) ? $_POST['vb_enabled_days'] : array();
+            
+            foreach ($_POST['vb_schedule'] as $day => $times) {
+                $schedule = array(
+                    'enabled' => in_array($day, $enabled_days),
+                    'start' => sanitize_text_field($times['start']),
+                    'end' => sanitize_text_field($times['end'])
                 );
+                update_post_meta($post_id, 'vb_schedule_' . $day, $schedule);
+            }
+        }
+
+        // Save to pricing table for quick lookups
+        if (isset($_POST['vb_location_pricing']) && is_array($_POST['vb_location_pricing'])) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'vb_service_pricing';
+
+            // Delete existing prices for this service
+            $wpdb->delete(
+                $table_name,
+                array('service_id' => $post_id),
+                array('%d')
+            );
+
+            // Insert new prices
+            foreach ($_POST['vb_location_pricing'] as $pricing) {
+                if (!empty($pricing['zip']) && isset($pricing['price'])) {
+                    $wpdb->insert(
+                        $table_name,
+                        array(
+                            'service_id' => $post_id,
+                            'zip_code' => sanitize_text_field($pricing['zip']),
+                            'price' => floatval($pricing['price']),
+                            'created_at' => current_time('mysql')
+                        ),
+                        array('%d', '%s', '%f', '%s')
+                    );
+                }
             }
         }
     }
-}
 }
