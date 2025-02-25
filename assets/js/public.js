@@ -816,6 +816,14 @@ jQuery(document).ready(function ($) {
 
   // Submit booking
   function submitBooking() {
+    console.log("Submitting booking with data:", {
+      serviceId: vbBookingData.service
+        ? vbBookingData.service.id
+        : "No service",
+      nonce: vbBookingData.nonce,
+      ajaxurl: vbBookingData.ajaxurl,
+    });
+
     if (!vbBookingData.service || !vbBookingData.service.id) {
       showError("No service selected.");
       return;
@@ -831,6 +839,8 @@ jQuery(document).ready(function ($) {
     }
 
     const formData = {
+      action: "vb_create_booking", // Explicitly set action
+      nonce: vbBookingData.nonce, // Explicitly include nonce
       service_id: vbBookingData.service.id,
       sub_service_id: vbBookingData.service.sub_service_id || null,
       booking_date: $(".vb-time-slot.selected").data("time"),
@@ -839,15 +849,17 @@ jQuery(document).ready(function ($) {
       customer_email: $("#vb-customer-email").val(),
       customer_phone: $("#vb-customer-phone").val(),
       customer_notes: $("#vb-customer-notes").val(),
-      coupon_code: $("#vb-coupon-code").val(),
+      coupon_code: $("#vb-coupon-code").val() || "",
       pay_deposit: $('input[name="pay_deposit"]').is(":checked"),
-      options: JSON.stringify(bookingData.selectedOptions),
+      options: JSON.stringify(bookingData.selectedOptions || {}),
       base_price: bookingData.basePrice,
       options_price: bookingData.totalOptionsPrice,
       total_amount: calculateTotalPrice(),
       tax_amount: bookingData.basePrice * (bookingData.taxRate / 100),
-      discount: bookingData.discount,
+      discount: bookingData.discount || 0,
     };
+
+    console.log("Prepared form data:", formData);
 
     // Process payment with Stripe if available
     if (stripe && cardElement) {
@@ -868,19 +880,30 @@ jQuery(document).ready(function ($) {
 
   // Process booking submission
   function processBooking(formData) {
+    console.log("Processing booking with data:", formData);
+
     $.ajax({
       url: vbBookingData.ajaxurl,
       type: "POST",
-      data: {
-        action: "vb_create_booking",
-        nonce: vbBookingData.nonce,
-        ...formData,
+      data: formData,
+      xhrFields: {
+        withCredentials: true, // Add this line
       },
-      beforeSend: function () {
+      beforeSend: function (xhr) {
+        // Additional debugging
+        console.log("AJAX Request Details:", {
+          url: vbBookingData.ajaxurl,
+          action: formData.action,
+          nonce: formData.nonce,
+        });
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
         showLoading();
         $(".vb-submit-booking").prop("disabled", true);
       },
       success: function (response) {
+        console.log("AJAX Success Response:", response);
+
         if (response.success) {
           $("#vb-booking-reference").text(response.data.booking_id);
 
@@ -902,10 +925,17 @@ jQuery(document).ready(function ($) {
           );
         }
       },
-      error: function (xhr) {
-        console.error("Booking error:", xhr);
+      error: function (xhr, status, error) {
+        console.error("AJAX Error Details:", {
+          status: status,
+          error: error,
+          responseText: xhr.responseText,
+          readyState: xhr.readyState,
+          statusCode: xhr.status,
+        });
+
         showError(
-          "An error occurred while processing your booking. Please try again later."
+          "An error occurred while processing your booking. Please check the console for details."
         );
       },
       complete: function () {
@@ -965,4 +995,20 @@ jQuery(document).ready(function ($) {
   function hideLoading() {
     $(".vb-loading-overlay").hide();
   }
+});
+
+// Add this to your document ready function
+$.ajax({
+  url: vbBookingData.ajaxurl,
+  type: "POST",
+  data: {
+    action: "vb_security_test",
+    nonce: vbBookingData.nonce, // Include nonce if needed
+  },
+  success: function (response) {
+    console.log("Security test response:", response);
+  },
+  error: function (xhr, status, error) {
+    console.error("Security test error:", xhr, status, error);
+  },
 });

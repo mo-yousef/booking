@@ -108,6 +108,7 @@ class Form {
         wp_localize_script('vandel-booking-public', 'vbBookingData', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('vb_booking_form'),
+
             'service' => $service_data,
             'currency' => get_option('vandel_booking_currency', 'USD'),
             'stripeKey' => get_option('vandel_booking_stripe_test_mode') ? 
@@ -220,7 +221,37 @@ public function check_availability() {
      * AJAX handler for creating a booking
      */
     public function create_booking() {
-        check_ajax_referer('vb_create_booking', 'nonce');
+        // Log server information
+        error_log('CREATE BOOKING ENDPOINT CALLED');
+        error_log('SERVER REQUEST METHOD: ' . $_SERVER['REQUEST_METHOD']);
+        error_log('SERVER HTTP REFERER: ' . ($_SERVER['HTTP_REFERER'] ?? 'Not Set'));
+        error_log('REMOTE ADDRESS: ' . $_SERVER['REMOTE_ADDR']);
+
+        // Detailed POST data logging (be careful with sensitive info)
+        $sanitized_post = $_POST;
+        unset($sanitized_post['customer_email'], $sanitized_post['customer_phone']);
+        error_log('RECEIVED POST DATA: ' . print_r($sanitized_post, true));
+
+        // Enhanced nonce verification
+        if (!isset($_POST['nonce'])) {
+            error_log('NO NONCE RECEIVED');
+            wp_send_json_error(array(
+                'message' => 'No nonce provided',
+                'debug' => 'Nonce is missing from the request'
+            ));
+            exit;
+        }
+
+        // Verify nonce with more context
+        if (!wp_verify_nonce($_POST['nonce'], 'vb_booking_form')) {
+            error_log('NONCE VERIFICATION FAILED');
+            error_log('Received nonce: ' . $_POST['nonce']);
+            wp_send_json_error(array(
+                'message' => 'Security check failed',
+                'debug' => 'Nonce verification failed'
+            ));
+            exit;
+        }
 
         // Validate required fields
         $required_fields = array(
@@ -648,4 +679,17 @@ public function ajax_select_service() {
         // Implementation for sending emails
         // You'll need to create email templates and use wp_mail()
     }
+
+
+
+public function security_test_endpoint() {
+    error_log('SECURITY TEST ENDPOINT CALLED');
+    
+    // Log detailed request information
+    error_log('SERVER REQUEST METHOD: ' . $_SERVER['REQUEST_METHOD']);
+    error_log('SERVER HTTP REFERER: ' . ($_SERVER['HTTP_REFERER'] ?? 'Not Set'));
+    error_log('REMOTE ADDRESS: ' . $_SERVER['REMOTE_ADDR']);
+
+    wp_send_json_success('Security test passed');
+}
 }
