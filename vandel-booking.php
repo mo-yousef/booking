@@ -62,6 +62,16 @@ class VandelBooking {
      * @var Form Form instance
      */
     public $form;
+    
+    /**
+     * @var Service Service instance
+     */
+    public $service;
+    
+    /**
+     * @var ServiceOptions ServiceOptions instance
+     */
+    public $service_options;
 
     /**
      * @var Admin Admin instance
@@ -104,6 +114,8 @@ class VandelBooking {
      */
     private function init_components() {
         $this->database = new Database();
+        $this->service = new Service(); // Initialize Service
+        $this->service_options = new ServiceOptions(); // Initialize ServiceOptions
         $this->form = new Form();
         
         if (is_admin()) {
@@ -149,12 +161,24 @@ class VandelBooking {
     public function admin_enqueue_scripts() {
         $screen = get_current_screen();
         if (strpos($screen->id, 'vb_service') !== false) {
+            // Core admin styles and scripts
             wp_enqueue_style('vandel-booking-admin', VANDEL_BOOKING_PLUGIN_URL . 'assets/css/admin.css', array(), VANDEL_BOOKING_VERSION);
             wp_enqueue_script('vandel-booking-admin', VANDEL_BOOKING_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), VANDEL_BOOKING_VERSION, true);
             
+            // Service options scripts and styles
+            wp_enqueue_script('jquery-ui-sortable');
+            wp_enqueue_style('vandel-booking-service-options', VANDEL_BOOKING_PLUGIN_URL . 'assets/css/service-options.css', array(), VANDEL_BOOKING_VERSION);
+            wp_enqueue_script('vandel-booking-service-options', VANDEL_BOOKING_PLUGIN_URL . 'assets/js/service-options.js', array('jquery', 'jquery-ui-sortable'), VANDEL_BOOKING_VERSION, true);
+            
+            // Localize scripts
             wp_localize_script('vandel-booking-admin', 'vbAdminData', array(
                 'ajaxurl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('vandel_booking_admin'),
+            ));
+            
+            wp_localize_script('vandel-booking-service-options', 'vbServiceOptions', array(
+                'ajaxurl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('vb_service_options_nonce'),
             ));
         }
     }
@@ -163,13 +187,20 @@ class VandelBooking {
      * Enqueue public scripts and styles
      */
     public function public_enqueue_scripts() {
-        wp_enqueue_style('vandel-booking-public', VANDEL_BOOKING_PLUGIN_URL . 'assets/css/public.css', array(), VANDEL_BOOKING_VERSION);
-        wp_enqueue_script('vandel-booking-public', VANDEL_BOOKING_PLUGIN_URL . 'assets/js/public.js', array('jquery'), VANDEL_BOOKING_VERSION, true);
+        // Enqueue toastr dependencies
+        wp_enqueue_style('toastr', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css');
+        wp_enqueue_script('toastr', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js', array('jquery'), '2.1.4', true);
         
+        // Enqueue main plugin styles and scripts
+        wp_enqueue_style('vandel-booking-public', VANDEL_BOOKING_PLUGIN_URL . 'assets/css/public.css', array(), VANDEL_BOOKING_VERSION);
+        wp_enqueue_script('vandel-booking-public', VANDEL_BOOKING_PLUGIN_URL . 'assets/js/public.js', array('jquery', 'toastr'), VANDEL_BOOKING_VERSION, true);
+        
+        // Localize script
         wp_localize_script('vandel-booking-public', 'vbBookingData', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('vandel_booking_public'),
             'currency' => get_option('vandel_booking_currency', 'USD'),
+            'stripeKey' => get_option('vandel_booking_stripe_' . (get_option('vandel_booking_stripe_test_mode', true) ? 'test' : 'live') . '_key', ''),
         ));
     }
 
@@ -265,6 +296,3 @@ function vandel_booking() {
 
 // Start the plugin
 vandel_booking();
-
-wp_enqueue_style('toastr', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css');
-wp_enqueue_script('toastr', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js', array('jquery'), '2.1.4', true);

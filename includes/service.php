@@ -2,431 +2,514 @@
 namespace VandelBooking;
 
 /**
- * Service class for handling service-related functionality
+ * Service class for managing service data and availability
  */
 class Service {
-    /**
-     * @var Database Database instance
-     */
-    private $database;
-
     /**
      * Constructor
      */
     public function __construct() {
-        $this->database = new Database();
-        
-        add_action('add_meta_boxes', array($this, 'add_service_meta_boxes'));
-        add_action('save_post_vb_service', array($this, 'save_service_meta'));
+        add_action('add_meta_boxes', array($this, 'register_meta_boxes'));
+        add_action('save_post', array($this, 'save_meta_box_data'));
     }
 
     /**
-     * Add service meta boxes
+     * Register meta boxes
      */
-    public function add_service_meta_boxes() {
-        // Service Settings meta box
+    public function register_meta_boxes() {
         add_meta_box(
-            'vb_service_settings',
-            __('Service Settings', 'vandel-booking'),
-            array($this, 'render_service_meta_box'),
+            'vb_service_details',
+            __('Service Details', 'vandel-booking'),
+            array($this, 'render_service_details_meta_box'),
             'vb_service',
             'normal',
             'high'
         );
-
-        // Parent Service meta box
+        
         add_meta_box(
-            'vb_service_parent',
-            __('Parent Service', 'vandel-booking'),
-            array($this, 'render_parent_service_metabox'),
+            'vb_service_pricing',
+            __('Service Pricing', 'vandel-booking'),
+            array($this, 'render_service_pricing_meta_box'),
             'vb_service',
-            'side',
-            'default'
+            'normal',
+            'high'
+        );
+        
+        add_meta_box(
+            'vb_service_availability',
+            __('Service Availability', 'vandel-booking'),
+            array($this, 'render_service_availability_meta_box'),
+            'vb_service',
+            'normal',
+            'high'
         );
     }
 
     /**
-     * Render parent service selection metabox
+     * Render service details meta box
      */
-    public function render_parent_service_metabox($post) {
+    public function render_service_details_meta_box($post) {
         // Add nonce for security
-        wp_nonce_field('vb_service_parent_nonce', 'vb_service_parent_nonce');
-
-        // Get current parent service
-        $parent_service_id = get_post_meta($post->ID, '_vb_parent_service', true);
-
-        // Get all services except current one and its children
-        $services = $this->get_available_parent_services($post->ID);
-
+        wp_nonce_field('vb_service_details_nonce', 'vb_service_details_nonce');
+        
+        // Get the saved values
+        $duration = get_post_meta($post->ID, 'vb_duration', true);
+        $short_description = get_post_meta($post->ID, 'vb_short_description', true);
+        $parent_service = get_post_meta($post->ID, '_vb_parent_service', true);
+        
         ?>
-        <p>
-            <label for="vb_parent_service">
-                <?php _e('Select Parent Service:', 'vandel-booking'); ?>
-            </label>
-            <select name="vb_parent_service" id="vb_parent_service" class="widefat">
-                <option value=""><?php _e('None (Top Level Service)', 'vandel-booking'); ?></option>
-                <?php foreach ($services as $service) : ?>
-                    <option value="<?php echo esc_attr($service->ID); ?>" 
-                            <?php selected($parent_service_id, $service->ID); ?>>
-                        <?php echo esc_html($service->post_title); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </p>
-        <p class="description">
-            <?php _e('Making this a sub-service will make it available only when the parent service is selected.', 'vandel-booking'); ?>
-        </p>
+        <table class="form-table">
+            <tr>
+                <th scope="row">
+                    <label for="vb_duration"><?php _e('Duration (minutes)', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <input type="number" id="vb_duration" name="vb_duration" value="<?php echo esc_attr($duration); ?>" min="15" step="15">
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="vb_short_description"><?php _e('Short Description', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <textarea id="vb_short_description" name="vb_short_description" rows="3" class="large-text"><?php echo esc_textarea($short_description); ?></textarea>
+                    <p class="description"><?php _e('A brief description of the service (displayed in the booking form).', 'vandel-booking'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="vb_parent_service"><?php _e('Parent Service', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <?php
+                    $services = get_posts(array(
+                        'post_type' => 'vb_service',
+                        'posts_per_page' => -1,
+                        'post__not_in' => array($post->ID),
+                        'meta_query' => array(
+                            array(
+                                'key' => '_vb_parent_service',
+                                'compare' => 'NOT EXISTS'
+                            )
+                        )
+                    ));
+                    
+                    if (!empty($services)) {
+                        echo '<select id="vb_parent_service" name="vb_parent_service">';
+                        echo '<option value="">' . __('None (Top Level Service)', 'vandel-booking') . '</option>';
+                        
+                        foreach ($services as $service) {
+                            echo '<option value="' . esc_attr($service->ID) . '" ' . selected($parent_service, $service->ID, false) . '>' . esc_html($service->post_title) . '</option>';
+                        }
+                        
+                        echo '</select>';
+                        echo '<p class="description">' . __('Select a parent service if this is a sub-service or variant.', 'vandel-booking') . '</p>';
+                    } else {
+                        echo '<p>' . __('No parent services available.', 'vandel-booking') . '</p>';
+                    }
+                    ?>
+                </td>
+            </tr>
+        </table>
         <?php
     }
 
     /**
-     * Get available parent services
+     * Render service pricing meta box
      */
-    private function get_available_parent_services($current_id) {
-        // Get all child services of current service
-        $child_services = $this->get_child_services($current_id);
-        $excluded_ids = array_merge(array($current_id), $child_services);
-
-        // Query services
-        return get_posts(array(
-            'post_type' => 'vb_service',
-            'posts_per_page' => -1,
-            'post__not_in' => $excluded_ids,
-            'orderby' => 'title',
-            'order' => 'ASC',
-            'meta_query' => array(
-                array(
-                    'key' => '_vb_parent_service',
-                    'compare' => 'NOT EXISTS'
-                )
-            )
-        ));
-    }
-
-    /**
-     * Get all child services recursively
-     */
-    private function get_child_services($service_id) {
-        $children = array();
+    public function render_service_pricing_meta_box($post) {
+        // Add nonce for security
+        wp_nonce_field('vb_service_pricing_nonce', 'vb_service_pricing_nonce');
         
-        $child_services = get_posts(array(
-            'post_type' => 'vb_service',
-            'posts_per_page' => -1,
-            'meta_query' => array(
-                array(
-                    'key' => '_vb_parent_service',
-                    'value' => $service_id
-                )
-            )
-        ));
-
-        foreach ($child_services as $child) {
-            $children[] = $child->ID;
-            $children = array_merge($children, $this->get_child_services($child->ID));
-        }
-
-        return $children;
+        // Get the saved values
+        $regular_price = get_post_meta($post->ID, 'vb_regular_price', true);
+        $sale_price = get_post_meta($post->ID, 'vb_sale_price', true);
+        $tax_rate = get_post_meta($post->ID, 'vb_tax_rate', true);
+        $enable_deposit = get_post_meta($post->ID, 'vb_enable_deposit', true);
+        $deposit_type = get_post_meta($post->ID, 'vb_deposit_type', true) ?: 'percentage';
+        $deposit_amount = get_post_meta($post->ID, 'vb_deposit_amount', true);
+        
+        ?>
+        <table class="form-table">
+            <tr>
+                <th scope="row">
+                    <label for="vb_regular_price"><?php _e('Regular Price', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <input type="number" id="vb_regular_price" name="vb_regular_price" value="<?php echo esc_attr($regular_price); ?>" min="0" step="0.01">
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="vb_sale_price"><?php _e('Sale Price (optional)', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <input type="number" id="vb_sale_price" name="vb_sale_price" value="<?php echo esc_attr($sale_price); ?>" min="0" step="0.01">
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="vb_tax_rate"><?php _e('Tax Rate (%)', 'vandel-booking'); ?></label>
+                </th>
+                <td>
+                    <input type="number" id="vb_tax_rate" name="vb_tax_rate" value="<?php echo esc_attr($tax_rate); ?>" min="0" max="100" step="0.01">
+                    <p class="description"><?php _e('Leave empty to use the default tax rate.', 'vandel-booking'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <?php _e('Deposit Options', 'vandel-booking'); ?>
+                </th>
+                <td>
+                    <fieldset>
+                        <label>
+                            <input type="checkbox" name="vb_enable_deposit" value="1" <?php checked($enable_deposit, '1'); ?>>
+                            <?php _e('Enable deposit payment', 'vandel-booking'); ?>
+                        </label>
+                        
+                        <div class="vb-deposit-options" style="margin-top: 10px; <?php echo $enable_deposit ? '' : 'display: none;'; ?>">
+                            <label>
+                                <input type="radio" name="vb_deposit_type" value="percentage" <?php checked($deposit_type, 'percentage'); ?>>
+                                <?php _e('Percentage of total', 'vandel-booking'); ?>
+                            </label>
+                            <br>
+                            <label>
+                                <input type="radio" name="vb_deposit_type" value="fixed" <?php checked($deposit_type, 'fixed'); ?>>
+                                <?php _e('Fixed amount', 'vandel-booking'); ?>
+                            </label>
+                            <br>
+                            <label for="vb_deposit_amount" style="display: block; margin-top: 10px;">
+                                <?php _e('Deposit Amount', 'vandel-booking'); ?>
+                            </label>
+                            <input type="number" id="vb_deposit_amount" name="vb_deposit_amount" value="<?php echo esc_attr($deposit_amount); ?>" min="0" step="0.01">
+                        </div>
+                    </fieldset>
+                </td>
+            </tr>
+        </table>
+        <script>
+            jQuery(document).ready(function($) {
+                $('input[name="vb_enable_deposit"]').on('change', function() {
+                    if ($(this).is(':checked')) {
+                        $('.vb-deposit-options').show();
+                    } else {
+                        $('.vb-deposit-options').hide();
+                    }
+                });
+            });
+        </script>
+        <?php
     }
 
     /**
-     * Render service meta box
+     * Render service availability meta box
      */
-    public function render_service_meta_box($post) {
-        wp_nonce_field('vb_service_meta_box', 'vb_service_meta_box_nonce');
-        include VANDEL_BOOKING_PLUGIN_DIR . 'templates/admin/service-meta-box.php';
-    }
-
-    /**
-     * Save service meta
-     */
-    public function save_service_meta($post_id) {
-        // Check nonces
-        if (!isset($_POST['vb_service_meta_box_nonce']) || 
-            !wp_verify_nonce($_POST['vb_service_meta_box_nonce'], 'vb_service_meta_box')) {
-            return;
-        }
-
-        // Check parent service nonce
-        if (isset($_POST['vb_service_parent_nonce']) && 
-            wp_verify_nonce($_POST['vb_service_parent_nonce'], 'vb_service_parent_nonce')) {
-            // Save parent service
-            $parent_service = isset($_POST['vb_parent_service']) ? 
-                sanitize_text_field($_POST['vb_parent_service']) : '';
-
-            if (empty($parent_service)) {
-                delete_post_meta($post_id, '_vb_parent_service');
-            } else {
-                update_post_meta($post_id, '_vb_parent_service', $parent_service);
-            }
-        }
-
-        // If this is an autosave, don't do anything
-        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-            return;
-        }
-
-        // Check user permissions
-        if (!current_user_can('edit_post', $post_id)) {
-            return;
-        }
-
-        // Save general settings
-        $fields = array(
-            'vb_duration' => 'intval',
-            'vb_buffer_time' => 'intval',
-            'vb_max_bookings_per_day' => 'intval',
-            'vb_regular_price' => 'floatval',
-            'vb_sale_price' => 'floatval',
-            'vb_tax_rate' => 'floatval',
-            'vb_enable_scheduling' => 'intval',
-            'vb_enable_deposit' => 'intval',
-            'vb_deposit_type' => 'sanitize_text_field',
-            'vb_deposit_amount' => 'floatval'
+    public function render_service_availability_meta_box($post) {
+        // Add nonce for security
+        wp_nonce_field('vb_service_availability_nonce', 'vb_service_availability_nonce');
+        
+        // Get the saved values
+        $available_days = get_post_meta($post->ID, 'vb_available_days', true) ?: array();
+        $time_slots = get_post_meta($post->ID, 'vb_time_slots', true) ?: array();
+        
+        // Days of the week
+        $days = array(
+            'monday' => __('Monday', 'vandel-booking'),
+            'tuesday' => __('Tuesday', 'vandel-booking'),
+            'wednesday' => __('Wednesday', 'vandel-booking'),
+            'thursday' => __('Thursday', 'vandel-booking'),
+            'friday' => __('Friday', 'vandel-booking'),
+            'saturday' => __('Saturday', 'vandel-booking'),
+            'sunday' => __('Sunday', 'vandel-booking')
         );
+        
+        ?>
+        <div class="vb-availability-container">
+            <h3><?php _e('Available Days', 'vandel-booking'); ?></h3>
+            <div class="vb-available-days">
+                <?php foreach ($days as $day_key => $day_label) : ?>
+                    <label>
+                        <input type="checkbox" name="vb_available_days[]" value="<?php echo esc_attr($day_key); ?>" <?php checked(in_array($day_key, (array)$available_days), true); ?>>
+                        <?php echo esc_html($day_label); ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            
+            <h3><?php _e('Time Slots', 'vandel-booking'); ?></h3>
+            <div class="vb-time-slots">
+                <table class="widefat" id="vb-time-slots-table">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Start Time', 'vandel-booking'); ?></th>
+                            <th><?php _e('End Time', 'vandel-booking'); ?></th>
+                            <th><?php _e('Capacity', 'vandel-booking'); ?></th>
+                            <th><?php _e('Action', 'vandel-booking'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($time_slots)) : ?>
+                            <?php foreach ($time_slots as $index => $slot) : ?>
+                                <tr class="vb-time-slot-row">
+                                    <td>
+                                        <input type="time" name="vb_time_slots[<?php echo $index; ?>][start]" value="<?php echo esc_attr($slot['start']); ?>">
+                                    </td>
+                                    <td>
+                                        <input type="time" name="vb_time_slots[<?php echo $index; ?>][end]" value="<?php echo esc_attr($slot['end']); ?>">
+                                    </td>
+                                    <td>
+                                        <input type="number" name="vb_time_slots[<?php echo $index; ?>][capacity]" value="<?php echo esc_attr($slot['capacity']); ?>" min="1">
+                                    </td>
+                                    <td>
+                                        <button type="button" class="button vb-remove-slot"><?php _e('Remove', 'vandel-booking'); ?></button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else : ?>
+                            <tr class="vb-time-slot-row">
+                                <td>
+                                    <input type="time" name="vb_time_slots[0][start]" value="09:00">
+                                </td>
+                                <td>
+                                    <input type="time" name="vb_time_slots[0][end]" value="10:00">
+                                </td>
+                                <td>
+                                    <input type="number" name="vb_time_slots[0][capacity]" value="1" min="1">
+                                </td>
+                                <td>
+                                    <button type="button" class="button vb-remove-slot"><?php _e('Remove', 'vandel-booking'); ?></button>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                
+                <button type="button" class="button" id="vb-add-slot"><?php _e('Add Time Slot', 'vandel-booking'); ?></button>
+            </div>
+        </div>
+        
+        <script>
+            jQuery(document).ready(function($) {
+                // Add time slot
+                $('#vb-add-slot').on('click', function() {
+                    var rowCount = $('.vb-time-slot-row').length;
+                    var newRow = `
+                        <tr class="vb-time-slot-row">
+                            <td>
+                                <input type="time" name="vb_time_slots[${rowCount}][start]" value="09:00">
+                            </td>
+                            <td>
+                                <input type="time" name="vb_time_slots[${rowCount}][end]" value="10:00">
+                            </td>
+                            <td>
+                                <input type="number" name="vb_time_slots[${rowCount}][capacity]" value="1" min="1">
+                            </td>
+                            <td>
+                                <button type="button" class="button vb-remove-slot"><?php _e('Remove', 'vandel-booking'); ?></button>
+                            </td>
+                        </tr>
+                    `;
+                    $('#vb-time-slots-table tbody').append(newRow);
+                });
+                
+                // Remove time slot
+                $(document).on('click', '.vb-remove-slot', function() {
+                    $(this).closest('tr').remove();
+                    // Reindex the rows
+                    $('.vb-time-slot-row').each(function(index) {
+                        $(this).find('input').each(function() {
+                            var name = $(this).attr('name');
+                            name = name.replace(/\[\d+\]/, '[' + index + ']');
+                            $(this).attr('name', name);
+                        });
+                    });
+                });
+            });
+        </script>
+        <?php
+    }
 
-        foreach ($fields as $field => $sanitize_callback) {
-            if (isset($_POST[$field])) {
-                update_post_meta($post_id, $field, $sanitize_callback($_POST[$field]));
+    /**
+     * Save meta box data
+     */
+    public function save_meta_box_data($post_id) {
+        // Check if we're saving a service
+        if ('vb_service' !== get_post_type($post_id)) {
+            return;
+        }
+        
+        // Service Details
+        if (isset($_POST['vb_service_details_nonce']) && wp_verify_nonce($_POST['vb_service_details_nonce'], 'vb_service_details_nonce')) {
+            // Save duration
+            if (isset($_POST['vb_duration'])) {
+                update_post_meta($post_id, 'vb_duration', intval($_POST['vb_duration']));
+            }
+            
+            // Save short description
+            if (isset($_POST['vb_short_description'])) {
+                update_post_meta($post_id, 'vb_short_description', sanitize_textarea_field($_POST['vb_short_description']));
+            }
+            
+            // Save parent service
+            if (isset($_POST['vb_parent_service'])) {
+                $parent_id = absint($_POST['vb_parent_service']);
+                if ($parent_id > 0 && $parent_id !== $post_id) {
+                    update_post_meta($post_id, '_vb_parent_service', $parent_id);
+                } else {
+                    delete_post_meta($post_id, '_vb_parent_service');
+                }
             } else {
-                delete_post_meta($post_id, $field);
+                delete_post_meta($post_id, '_vb_parent_service');
             }
         }
-
-        // Save location pricing
-        if (isset($_POST['vb_location_pricing']) && is_array($_POST['vb_location_pricing'])) {
-            $location_pricing = array();
-            foreach ($_POST['vb_location_pricing'] as $pricing) {
-                if (!empty($pricing['zip']) && isset($pricing['price'])) {
-                    $location_pricing[] = array(
-                        'zip' => sanitize_text_field($pricing['zip']),
-                        'price' => floatval($pricing['price'])
-                    );
+        
+        // Service Pricing
+        if (isset($_POST['vb_service_pricing_nonce']) && wp_verify_nonce($_POST['vb_service_pricing_nonce'], 'vb_service_pricing_nonce')) {
+            // Save regular price
+            if (isset($_POST['vb_regular_price'])) {
+                update_post_meta($post_id, 'vb_regular_price', floatval($_POST['vb_regular_price']));
+            }
+            
+            // Save sale price
+            if (isset($_POST['vb_sale_price'])) {
+                update_post_meta($post_id, 'vb_sale_price', floatval($_POST['vb_sale_price']));
+            }
+            
+            // Save tax rate
+            if (isset($_POST['vb_tax_rate'])) {
+                update_post_meta($post_id, 'vb_tax_rate', floatval($_POST['vb_tax_rate']));
+            }
+            
+            // Save deposit settings
+            update_post_meta($post_id, 'vb_enable_deposit', isset($_POST['vb_enable_deposit']) ? '1' : '');
+            
+            if (isset($_POST['vb_deposit_type'])) {
+                update_post_meta($post_id, 'vb_deposit_type', sanitize_text_field($_POST['vb_deposit_type']));
+            }
+            
+            if (isset($_POST['vb_deposit_amount'])) {
+                update_post_meta($post_id, 'vb_deposit_amount', floatval($_POST['vb_deposit_amount']));
+            }
+        }
+        
+        // Service Availability
+        if (isset($_POST['vb_service_availability_nonce']) && wp_verify_nonce($_POST['vb_service_availability_nonce'], 'vb_service_availability_nonce')) {
+            // Save available days
+            $available_days = isset($_POST['vb_available_days']) ? array_map('sanitize_text_field', $_POST['vb_available_days']) : array();
+            update_post_meta($post_id, 'vb_available_days', $available_days);
+            
+            // Save time slots
+            $time_slots = array();
+            if (isset($_POST['vb_time_slots']) && is_array($_POST['vb_time_slots'])) {
+                foreach ($_POST['vb_time_slots'] as $slot) {
+                    if (!empty($slot['start']) && !empty($slot['end'])) {
+                        $time_slots[] = array(
+                            'start' => sanitize_text_field($slot['start']),
+                            'end' => sanitize_text_field($slot['end']),
+                            'capacity' => absint($slot['capacity'])
+                        );
+                    }
                 }
             }
-            update_post_meta($post_id, 'vb_location_pricing', $location_pricing);
-        } else {
-            delete_post_meta($post_id, 'vb_location_pricing');
+            update_post_meta($post_id, 'vb_time_slots', $time_slots);
         }
-
-        // Save schedule settings
-        if (isset($_POST['vb_schedule']) && is_array($_POST['vb_schedule'])) {
-            $enabled_days = isset($_POST['vb_enabled_days']) ? $_POST['vb_enabled_days'] : array();
-            
-            foreach ($_POST['vb_schedule'] as $day => $times) {
-                $schedule = array(
-                    'enabled' => in_array($day, $enabled_days),
-                    'start' => sanitize_text_field($times['start']),
-                    'end' => sanitize_text_field($times['end'])
-                );
-                update_post_meta($post_id, 'vb_schedule_' . $day, $schedule);
-            }
-        }
-
-        // Update service pricing table
-        $this->update_service_pricing($post_id);
     }
 
     /**
-     * Get sub-services for a given service
+     * Get sub-services for a specific service
      */
     public function get_sub_services($service_id) {
-        return get_posts(array(
+        $sub_services = get_posts(array(
             'post_type' => 'vb_service',
             'posts_per_page' => -1,
+            'meta_key' => '_vb_parent_service',
+            'meta_value' => $service_id,
             'orderby' => 'menu_order',
-            'order' => 'ASC',
-            'meta_query' => array(
-                array(
-                    'key' => '_vb_parent_service',
-                    'value' => $service_id
-                )
-            )
+            'order' => 'ASC'
         ));
+        
+        return $sub_services;
     }
 
     /**
-     * Check if a service has sub-services
-     */
-    public function has_sub_services($service_id) {
-        $sub_services = $this->get_sub_services($service_id);
-        return !empty($sub_services);
-    }
-
-    /**
-     * Get the parent service ID
-     */
-    public function get_parent_service($service_id) {
-        return get_post_meta($service_id, '_vb_parent_service', true);
-    }
-
-    /**
-     * Update service pricing in the database table
-     */
-    private function update_service_pricing($service_id) {
-        if (!isset($_POST['vb_location_pricing']) || !is_array($_POST['vb_location_pricing'])) {
-            return;
-        }
-
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'vb_service_pricing';
-
-        // Delete existing prices for this service
-        $wpdb->delete(
-            $table_name,
-            array('service_id' => $service_id),
-            array('%d')
-        );
-
-        // Insert new prices
-        foreach ($_POST['vb_location_pricing'] as $pricing) {
-            if (!empty($pricing['zip']) && isset($pricing['price'])) {
-                $wpdb->insert(
-                    $table_name,
-                    array(
-                        'service_id' => $service_id,
-                        'zip_code' => sanitize_text_field($pricing['zip']),
-                        'price' => floatval($pricing['price']),
-                        'created_at' => current_time('mysql')
-                    ),
-                    array('%d', '%s', '%f', '%s')
-                );
-            }
-        }
-    }
-
-    /**
-     * Get available time slots for a service
+     * Get available slots for a service on a specific date
      */
     public function get_available_slots($service_id, $date, $zip_code) {
-        // Validate inputs
-        if (!$service_id || !$date || !$zip_code) {
+        // Get service time slots
+        $time_slots = get_post_meta($service_id, 'vb_time_slots', true);
+        if (empty($time_slots)) {
             return array();
         }
-
-        // Get service-specific settings
-        $duration = get_post_meta($service_id, 'vb_duration', true) ?: 60; // Default 60 minutes
-        $buffer_time = get_post_meta($service_id, 'vb_buffer_time', true) ?: 15; // Default 15 minutes buffer
-        $max_bookings_per_slot = get_post_meta($service_id, 'vb_max_bookings_per_day', true) ?: 1; // Default 1 booking per slot
-
-        // Get day of week
-        $day = strtolower(date('l', strtotime($date)));
-        $schedule = get_post_meta($service_id, 'vb_schedule_' . $day, true);
-
-        // If no schedule is set for this day, return empty
-        if (!$schedule || !$schedule['enabled']) {
-            return array();
+        
+        // Get service duration
+        $duration = get_post_meta($service_id, 'vb_duration', true);
+        if (empty($duration)) {
+            $duration = 60; // Default to 1 hour
         }
-
-        // Convert schedule times to timestamps
-        $start_time = strtotime($date . ' ' . $schedule['start']);
-        $end_time = strtotime($date . ' ' . $schedule['end']);
-        $slot_interval = ($duration + $buffer_time) * 60; // Convert to seconds
-
-        $slots = array();
-        $current_time = $start_time;
-
-        while ($current_time + ($duration * 60) <= $end_time) {
-            $slot_start = date('Y-m-d H:i:s', $current_time);
-            $slot_end = date('Y-m-d H:i:s', $current_time + ($duration * 60));
-
-            // Check slot availability
-            $slot_availability = $this->check_slot_availability(
-                $service_id, 
-                $slot_start, 
-                $slot_end, 
-                $zip_code, 
-                $max_bookings_per_slot
-            );
-
-            $slots[] = array(
-                'start' => $slot_start,
-                'end' => $slot_end,
-                'available' => $slot_availability
-            );
-
-            // Move to next slot
-            $current_time += $slot_interval;
+        
+        // Calculate available slots
+        $available_slots = array();
+        $date_obj = new \DateTime($date);
+        $day_of_week = strtolower($date_obj->format('l'));
+        
+        // Check if service is available on this day
+        $available_days = get_post_meta($service_id, 'vb_available_days', true);
+        if (!in_array($day_of_week, (array)$available_days)) {
+            return $available_slots;
         }
-
-        return $slots;
-    }
-
-    /**
-     * Check availability for a specific time slot
-     */
-    private function check_slot_availability($service_id, $slot_start, $slot_end, $zip_code, $max_bookings) {
+        
+        // Get existing bookings for this date
         global $wpdb;
-
-        // Check existing bookings for this time slot
-        $existing_bookings = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}vb_bookings 
+        $existing_bookings = $wpdb->get_results($wpdb->prepare(
+            "SELECT booking_date FROM {$wpdb->prefix}vb_bookings 
             WHERE service_id = %d 
-            AND booking_date BETWEEN %s AND %s
-            AND zip_code = %s
+            AND DATE(booking_date) = %s
             AND status NOT IN ('cancelled', 'rejected')",
             $service_id,
-            $slot_start,
-            $slot_end,
-            $zip_code
+            $date
         ));
-
-        // Return true if bookings are less than max allowed
-        return $existing_bookings < $max_bookings;
-    }
-
-    /**
-     * Get service price for a specific ZIP code
-     */
-    public function get_price($service_id, $zip_code) {
-        // First, try location-specific pricing
-        $price = $this->database->get_service_price($service_id, $zip_code);
         
-        // If no location-specific price, use service's regular price
-        if (!$price) {
-            $price = get_post_meta($service_id, 'vb_regular_price', true);
+        // Build array of booked times
+        $booked_times = array();
+        foreach ($existing_bookings as $booking) {
+            $booking_time = strtotime($booking->booking_date);
+            $booked_times[] = date('H:i', $booking_time);
+        }
+        
+        // Build available slots
+        foreach ($time_slots as $slot) {
+            $start_time = strtotime($date . ' ' . $slot['start']);
+            $end_time = strtotime($date . ' ' . $slot['end']);
             
-            // Check for sale price
-            $sale_price = get_post_meta($service_id, 'vb_sale_price', true);
-            if ($sale_price && $sale_price < $price) {
-                $price = $sale_price;
+            // Skip if the time slot is in the past
+            if ($start_time < current_time('timestamp')) {
+                continue;
+            }
+            
+            // Calculate slots within this time range
+            $current_time = $start_time;
+            while ($current_time + ($duration * 60) <= $end_time) {
+                $slot_start = date('H:i', $current_time);
+                
+                // Check if slot is available (not booked)
+                $available = true;
+                if (in_array($slot_start, $booked_times)) {
+                    $booked_count = array_count_values($booked_times)[$slot_start];
+                    if ($booked_count >= $slot['capacity']) {
+                        $available = false;
+                    }
+                }
+                
+                $available_slots[] = array(
+                    'start' => $date . ' ' . $slot_start,
+                    'end' => date('Y-m-d H:i', $current_time + ($duration * 60)),
+                    'available' => $available
+                );
+                
+                // Move to next slot
+                $current_time += 30 * 60; // 30-minute intervals
             }
         }
-
-        return floatval($price ?: 0);
-    }
-
-/**
-     * Calculate total price including tax
-     */
-    public function calculate_total($service_id, $price) {
-        $tax_rate = get_post_meta($service_id, 'vb_tax_rate', true) ?: 0;
-        $tax_amount = $price * ($tax_rate / 100);
         
-        return array(
-            'price' => $price,
-            'tax_rate' => $tax_rate,
-            'tax_amount' => $tax_amount,
-            'total' => $price + $tax_amount
-        );
-    }
-
-    /**
-     * Calculate deposit amount
-     */
-    public function calculate_deposit($service_id, $total_amount) {
-        $enable_deposit = get_post_meta($service_id, 'vb_enable_deposit', true);
-        
-        if (!$enable_deposit) {
-            return 0;
-        }
-
-        $deposit_type = get_post_meta($service_id, 'vb_deposit_type', true);
-        $deposit_amount = get_post_meta($service_id, 'vb_deposit_amount', true);
-
-        if ($deposit_type === 'percentage') {
-            return $total_amount * ($deposit_amount / 100);
-        }
-
-        return min($deposit_amount, $total_amount);
+        return $available_slots;
     }
 }

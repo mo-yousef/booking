@@ -1,0 +1,169 @@
+/* assets/css/service-options.css */
+
+.vb-service-options-container {
+    margin: 15px 0;
+}
+
+.vb-service-options-header {
+    margin-bottom: 15px;
+}
+
+.vb-service-option {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.vb-option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+    background: #f9f9f9;
+    cursor: move;
+}
+
+.vb-option-title h4 {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.vb-option-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.vb-option-actions span {
+    cursor: pointer;
+    color: #72777c;
+}
+
+.vb-option-actions span:hover {
+    color: #0073aa;
+}
+
+.vb-option-actions .vb-option-remove:hover {
+    color: #dc3232;
+}
+
+.vb-option-content {
+    padding: 15px;
+}
+
+.vb-option-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+    gap: 20px;
+}
+
+.vb-option-field {
+    flex: 1;
+    min-width: 200px;
+}
+
+.vb-option-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.vb-option-field input[type="text"],
+.vb-option-field input[type="number"],
+.vb-option-field select,
+.vb-option-field textarea {
+    width: 100%;
+}
+
+.vb-option-choices-container {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.vb-option-choices-list {
+    margin-bottom: 15px;
+}
+
+.vb-option-choice {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 3px;
+}
+
+.vb-choice-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vb-choice-field {
+    margin-right: 10px;
+}
+
+.vb-choice-label {
+    flex: 2;
+}
+
+.vb-choice-price {
+    flex: 1;
+    max-width: 120px;
+}
+
+.vb-choice-default {
+    flex: 1;
+    max-width: 100px;
+}
+
+.vb-choice-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.vb-choice-actions span {
+    cursor: pointer;
+    color: #72777c;
+}
+
+.vb-choice-actions .vb-choice-remove:hover {
+    color: #dc3232;
+}
+
+.vb-choice-actions .vb-choice-sort:hover {
+    color: #0073aa;
+}
+
+/* Specific styles based on option type */
+.vb-option-choices-container[data-type="number"] .vb-choice-label input,
+.vb-option-choices-container[data-type="text"] .vb-choice-label input,
+.vb-option-choices-container[data-type="textarea"] .vb-choice-label input {
+    font-style: italic;
+}
+
+.vb-option-choices-container[data-type="number"] .vb-add-choice,
+.vb-option-choices-container[data-type="text"] .vb-add-choice,
+.vb-option-choices-container[data-type="textarea"] .vb-add-choice {
+    display: none;
+}
+
+/* Drag and drop visual cues */
+.vb-service-option.ui-sortable-helper,
+.vb-option-choice.ui-sortable-helper {
+    border: 1px dashed #0073aa;
+    background: #f7fcff;
+    opacity: 0.8;
+}
+
+.vb-service-options-list.ui-sortable-placeholder,
+.vb-option-choices-list.ui-sortable-placeholder {
+    border: 1px dashed #ddd;
+    background: #f9f9f9;
+    height: 60px;
+    visibility: visible !important;
+}

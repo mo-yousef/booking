@@ -10,39 +10,62 @@ License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 A comprehensive booking and scheduling solution for WordPress businesses and service providers.
-
+booking/
+├── assets/
+│ ├── css/
+│ │ ├── admin.css
+│ │ ├── public.css
+│ │ └── service-options.css
+│ └── js/
+│ ├── admin.js
+│ ├── public.js
+│ └── service-options.js
+├── includes/
+│ ├── Database.php
+│ ├── Form.php
+│ ├── Service.php
+│ ├── ServiceOptions.php
+│ └── Admin.php
+├── templates/
+│ ├── booking-form.php
+│ └── ...
+└── vandel-booking.php
 == Description ==
 
 Vandel Booking is a powerful WordPress plugin that enables businesses to manage their bookings, appointments, and services with ease. Whether you're a salon, consultant, trainer, or service provider, this plugin offers a robust solution for online scheduling.
 
 = Key Features =
-* Create and manage multiple services
-* Support for parent and sub-services
-* Location-based pricing
-* Customizable booking form
-* Time slot management
-* Coupon support
-* Tax calculation
-* Deposit options
-* Customer management
-* Flexible scheduling
+
+- Create and manage multiple services
+- Support for parent and sub-services
+- Location-based pricing
+- Customizable booking form
+- Time slot management
+- Coupon support
+- Tax calculation
+- Deposit options
+- Customer management
+- Flexible scheduling
 
 = How It Works =
+
 1. Create your services in the WordPress admin
 2. Configure service settings (duration, pricing, availability)
 3. Add services to pages using shortcodes
 4. Customers can book services online
 
 = Requirements =
-* WordPress 5.6+
-* PHP 7.4+
-* WooCommerce (Optional, for advanced payment processing)
+
+- WordPress 5.6+
+- PHP 7.4+
+- WooCommerce (Optional, for advanced payment processing)
 
 = Premium Features (Upcoming) =
-* Multi-staff scheduling
-* Google Calendar integration
-* Advanced reporting
-* Custom notifications
+
+- Multi-staff scheduling
+- Google Calendar integration
+- Advanced reporting
+- Custom notifications
 
 == Installation ==
 
@@ -77,11 +100,12 @@ The booking form is fully responsive and works on all devices.
 == Changelog ==
 
 = 1.0.0 =
-* Initial plugin release
-* Service management
-* Booking form
-* Basic scheduling
-* Coupon support
+
+- Initial plugin release
+- Service management
+- Booking form
+- Basic scheduling
+- Coupon support
 
 == Upgrade Notice ==
 
@@ -93,15 +117,17 @@ Initial release. Please backup your site before installing.
 Vandel Booking is translation-ready. Translators are welcome to contribute translations at [Translation Platform URL].
 
 Supported Languages:
-* English (Default)
-* [Future supported languages]
+
+- English (Default)
+- [Future supported languages]
 
 == Support ==
 
-Need help? 
-* Check our documentation
-* Visit our support forum
-* Email: support@vandelbooking.com
+Need help?
+
+- Check our documentation
+- Visit our support forum
+- Email: support@vandelbooking.com
 
 == Contribution ==
 
@@ -109,10 +135,10 @@ Developers can contribute to Vandel Booking on [GitHub Repository URL].
 
 == Credits ==
 
-* [List any significant contributors or libraries used]
-* WordPress
-* jQuery
-* Stripe (Payment Integration)
+- [List any significant contributors or libraries used]
+- WordPress
+- jQuery
+- Stripe (Payment Integration)
 
 == Privacy Policy ==
 
