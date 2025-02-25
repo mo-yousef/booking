@@ -183,8 +183,8 @@
 .vb-form-row input[type="number"],
 .vb-form-row input[type="date"],
 .vb-form-row select,
-.vb-form-row textarea,
-.vb-option-input {
+.vb-form-row textarea {
+  /* .vb-option-input { */
   width: 100%;
   padding: 12px;
   border: 1px solid #ced4da;

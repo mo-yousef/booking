@@ -327,6 +327,8 @@ public function check_availability() {
             'booking_id' => $booking_id,
             'message' => __('Booking created successfully.', 'vandel-booking')
         ));
+
+        error_log('create_booking called with: ' . print_r($_POST, true));
     }
 
 /**
@@ -521,7 +523,6 @@ public function get_available_slots($service_id, $date, $zip_code) {
             'message' => __('Coupon applied successfully.', 'vandel-booking')
         ));
     }
-
 /**
  * AJAX handler for selecting a service
  */
@@ -533,6 +534,9 @@ public function ajax_select_service() {
     $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
     $sub_service_id = isset($_POST['sub_service_id']) ? intval($_POST['sub_service_id']) : null;
 
+    // For debugging
+    error_log("ajax_select_service called with service_id: $service_id, sub_service_id: " . ($sub_service_id ? $sub_service_id : "null"));
+
     // Validate service
     $service = get_post($service_id);
     if (!$service || $service->post_type !== 'vb_service') {
@@ -542,6 +546,7 @@ public function ajax_select_service() {
     }
 
     // If sub-service is provided, validate it
+    $sub_service = null;
     if ($sub_service_id) {
         $sub_service = get_post($sub_service_id);
         if (!$sub_service || $sub_service->post_type !== 'vb_service') {
@@ -550,9 +555,10 @@ public function ajax_select_service() {
             ));
         }
 
-        // Optional: Check if sub-service is actually a child of the main service
+        // Verify this is actually a sub-service of the selected service
         $parent_id = get_post_meta($sub_service_id, '_vb_parent_service', true);
-        if ($parent_id != $service_id) {
+        if ((int)$parent_id !== (int)$service_id) {
+            error_log("Parent mismatch: sub-service parent_id: $parent_id, service_id: $service_id");
             wp_send_json_error(array(
                 'message' => __('Selected sub-service does not belong to this service.', 'vandel-booking')
             ));
@@ -564,21 +570,44 @@ public function ajax_select_service() {
         'id' => $service_id,
         'title' => $service->post_title,
         'sub_service_id' => $sub_service_id,
-        'price' => get_post_meta($service_id, 'vb_regular_price', true),
+        'regular_price' => get_post_meta($service_id, 'vb_regular_price', true),
+        'sale_price' => get_post_meta($service_id, 'vb_sale_price', true),
         'tax_rate' => get_post_meta($service_id, 'vb_tax_rate', true),
         'enable_deposit' => get_post_meta($service_id, 'vb_enable_deposit', true),
         'deposit_type' => get_post_meta($service_id, 'vb_deposit_type', true),
         'deposit_amount' => get_post_meta($service_id, 'vb_deposit_amount', true),
     );
 
-    // If a sub-service is selected, override some details
-    if ($sub_service_id) {
+    // If a sub-service is selected, override relevant details
+    if ($sub_service) {
         $service_data['price'] = get_post_meta($sub_service_id, 'vb_regular_price', true);
-        $service_data['title'] .= ' - ' . get_post($sub_service_id)->post_title;
+        $service_data['title'] = $service->post_title . ' - ' . $sub_service->post_title;
+        
+        // Also get these values from sub-service if they exist
+        $sub_tax_rate = get_post_meta($sub_service_id, 'vb_tax_rate', true);
+        if ($sub_tax_rate) {
+            $service_data['tax_rate'] = $sub_tax_rate;
+        }
+        
+        $sub_deposit_enabled = get_post_meta($sub_service_id, 'vb_enable_deposit', true);
+        if ($sub_deposit_enabled) {
+            $service_data['enable_deposit'] = $sub_deposit_enabled;
+            $service_data['deposit_type'] = get_post_meta($sub_service_id, 'vb_deposit_type', true);
+            $service_data['deposit_amount'] = get_post_meta($sub_service_id, 'vb_deposit_amount', true);
+        }
+    } else {
+        // If no sub-service, set price directly from service
+        $service_data['price'] = get_post_meta($service_id, 'vb_regular_price', true);
+        $sale_price = get_post_meta($service_id, 'vb_sale_price', true);
+        if ($sale_price && $sale_price < $service_data['price']) {
+            $service_data['price'] = $sale_price;
+        }
     }
 
+    error_log("Sending service data: " . print_r($service_data, true));
     wp_send_json_success($service_data);
 }
+
 
 
     /**

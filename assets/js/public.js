@@ -672,6 +672,7 @@ jQuery(document).ready(function ($) {
       $("#vb-summary-discount").text(
         "-" + formatCurrency(bookingData.discount)
       );
+      $(".vb-coupon-row").show();
     }
 
     // Update total
@@ -685,24 +686,85 @@ jQuery(document).ready(function ($) {
     }
   }
 
-  // Add this to your public.js file
+  // FIX FOR SUB-SERVICES: Proper handling of sub-services for each service
+  // Initialize sub-service selection on page load
+  $(function () {
+    // Hide all sub-service selects initially
+    $(".vb-sub-services").hide();
 
-  // Service selection handling
+    // Instead of mouseenter, use click for better mobile support
+    $(document).on("click", ".vb-service-item", function (e) {
+      // Don't trigger if clicking on select, option or the select button
+      if (
+        $(e.target).is("select") ||
+        $(e.target).is("option") ||
+        $(e.target).is(".vb-select-service")
+      ) {
+        return;
+      }
+
+      // Get this service's sub-services container
+      const subServices = $(this).find(".vb-sub-services");
+
+      // Only toggle if there are sub-services
+      if (subServices.length > 0) {
+        // First, hide all other services' sub-services
+        $(".vb-service-item").not(this).find(".vb-sub-services").slideUp(200);
+
+        // Then toggle this service's sub-services
+        if (subServices.is(":visible")) {
+          subServices.slideUp(200);
+        } else {
+          subServices.slideDown(200);
+
+          // Add highlight class to indicate this service is active
+          $(".vb-service-item").removeClass("active");
+          $(this).addClass("active");
+        }
+      }
+    });
+
+    // Update sub-service selects when changed
+    $(document).on("change", ".vb-sub-service-select", function () {
+      const selectedOption = $(this).find("option:selected");
+      if (selectedOption.length && selectedOption.val()) {
+        // Get the service item this select belongs to
+        const serviceItem = $(this).closest(".vb-service-item");
+        const priceDisplay = serviceItem.find(".vb-service-price");
+
+        // Extract price information from the selected option text
+        const optionText = selectedOption.text();
+        const priceParts = optionText.split(" - ");
+
+        if (priceParts.length > 1 && priceDisplay.length) {
+          priceDisplay.text("Price: " + priceParts[1]);
+        }
+      }
+    });
+  });
+
+  // Updated service selection handler with better sub-service handling
   $(".vb-select-service").on("click", function () {
+    // Get this specific service item
     const serviceItem = $(this).closest(".vb-service-item");
     const serviceId = serviceItem.data("service-id");
+
+    // Find the sub-service select specific to THIS service item
     const subServiceSelect = serviceItem.find(".vb-sub-service-select");
-    const subServiceId = subServiceSelect.length
-      ? subServiceSelect.val()
-      : null;
+    const subServiceId =
+      subServiceSelect.length && subServiceSelect.val()
+        ? subServiceSelect.val()
+        : null;
 
     // Check if sub-service is required but not selected
     if (
       subServiceSelect.length &&
-      !subServiceId &&
-      subServiceSelect.find("option").length > 1
+      subServiceSelect.find("option").length > 1 &&
+      !subServiceId
     ) {
-      alert("Please select a sub-service");
+      showError("Please select a sub-service");
+      // Ensure sub-service dropdown is visible
+      subServiceSelect.closest(".vb-sub-services").slideDown(200);
       return;
     }
 
@@ -731,7 +793,7 @@ jQuery(document).ready(function ($) {
           // Update service name in booking summary
           $("#vb-summary-service").text(response.data.title);
 
-          // Move to next step
+          // Move to next step (either options or date/time)
           $('.vb-step[data-step="1"]').hide();
           $('.vb-step[data-step="2"]').show();
           $(".vb-form-progress li").removeClass("active");
@@ -881,7 +943,7 @@ jQuery(document).ready(function ($) {
   }
 
   function showError(message) {
-    if (typeof toastr !== "undefined") {
+    if (typeof toastr !== "undefined" && typeof toastr.error === "function") {
       toastr.error(message);
     } else {
       alert(message);
@@ -889,7 +951,7 @@ jQuery(document).ready(function ($) {
   }
 
   function showSuccess(message) {
-    if (typeof toastr !== "undefined") {
+    if (typeof toastr !== "undefined" && typeof toastr.success === "function") {
       toastr.success(message);
     } else {
       alert(message);

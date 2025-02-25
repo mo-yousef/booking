@@ -414,21 +414,37 @@ class Service {
         }
     }
 
-    /**
-     * Get sub-services for a specific service
-     */
-    public function get_sub_services($service_id) {
-        $sub_services = get_posts(array(
-            'post_type' => 'vb_service',
-            'posts_per_page' => -1,
-            'meta_key' => '_vb_parent_service',
-            'meta_value' => $service_id,
-            'orderby' => 'menu_order',
-            'order' => 'ASC'
-        ));
-        
-        return $sub_services;
+/**
+ * Get sub-services for a specific service
+ */
+public function get_sub_services($service_id) {
+    if (!$service_id) {
+        return array();
     }
+    
+    // For debugging
+    error_log("Getting sub-services for service ID: $service_id");
+    
+    $sub_services = get_posts(array(
+        'post_type' => 'vb_service',
+        'posts_per_page' => -1,
+        'meta_key' => '_vb_parent_service',
+        'meta_value' => $service_id,
+        'orderby' => 'menu_order',
+        'order' => 'ASC'
+    ));
+    
+    error_log("Found " . count($sub_services) . " sub-services for service ID: $service_id");
+    
+    // For debugging, log each sub-service
+    if (count($sub_services) > 0) {
+        foreach ($sub_services as $sub) {
+            error_log("Sub-service: ID=" . $sub->ID . ", Title=" . $sub->post_title . ", Parent=" . get_post_meta($sub->ID, '_vb_parent_service', true));
+        }
+    }
+    
+    return $sub_services;
+}
 
     /**
      * Get available slots for a service on a specific date
